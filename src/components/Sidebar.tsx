@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, LayoutDashboard, Users, Briefcase, Activity, BarChart3, CreditCard, FileText, Store } from 'lucide-react'
+import { Building2, LayoutDashboard, Users, Briefcase, Activity, BarChart3, CreditCard, FileText, Store, Upload } from 'lucide-react'
 import clsx from 'clsx'
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/portfolio', label: 'Portfolio', icon: BarChart3 },
   { href: '/contacts', label: 'Merchants', icon: Store },
   { href: '/deals', label: 'Deals', icon: Briefcase },
+  { href: '/upload-deal', label: 'Upload Deal', icon: Upload },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/bank-statements', label: 'Bank Statements', icon: FileText },
   { href: '/activities', label: 'Activities', icon: Activity },
