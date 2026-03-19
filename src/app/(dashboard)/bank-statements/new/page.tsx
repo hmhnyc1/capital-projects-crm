@@ -22,7 +22,7 @@ export default async function NewBankStatementPage() {
           Back to Bank Statements
         </Link>
         <h1 className="text-2xl font-bold text-slate-900">Upload Bank Statement</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Upload a CSV bank statement to parse and analyze transactions</p>
+        <p className="text-slate-500 text-sm mt-0.5">Upload a PDF bank statement — Claude AI will extract all data, identify MCA debits, and flag risk indicators automatically</p>
       </div>
 
       <BankStatementUploadForm contacts={contacts ?? []} />

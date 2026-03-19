@@ -4,25 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-export interface ParsedTransaction {
-  transaction_date: string | null
-  description: string | null
-  amount: number | null
-  transaction_type: 'credit' | 'debit' | null
-  balance: number | null
-  is_nsf: boolean
-}
-
-export interface StatementStats {
-  total_deposits: number
-  total_withdrawals: number
-  average_daily_balance: number
-  nsf_count: number
-  ending_balance: number | null
-  largest_deposit: number
-  transaction_count: number
-}
-
 export async function createBankStatement(formData: FormData) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,35 +14,25 @@ export async function createBankStatement(formData: FormData) {
   const monthStr = formData.get('statement_month') as string
   const yearStr = formData.get('statement_year') as string
   const analysisNotes = formData.get('analysis_notes') as string || null
-  const transactionsJson = formData.get('transactions_json') as string
-  const statsJson = formData.get('stats_json') as string
+  const analysisJson = formData.get('analysis_json') as string
 
-  const transactions: ParsedTransaction[] = transactionsJson ? JSON.parse(transactionsJson) : []
-  const stats: StatementStats = statsJson ? JSON.parse(statsJson) : {
-    total_deposits: 0,
-    total_withdrawals: 0,
-    average_daily_balance: 0,
-    nsf_count: 0,
-    ending_balance: null,
-    largest_deposit: 0,
-    transaction_count: 0,
-  }
+  const analysis = analysisJson ? JSON.parse(analysisJson) : {}
 
   const statementData = {
     user_id: user.id,
     contact_id: contactId,
     file_name: fileName,
-    statement_month: monthStr ? parseInt(monthStr) : null,
-    statement_year: yearStr ? parseInt(yearStr) : null,
-    total_deposits: stats.total_deposits,
-    total_withdrawals: stats.total_withdrawals,
-    average_daily_balance: stats.average_daily_balance,
-    nsf_count: stats.nsf_count,
-    ending_balance: stats.ending_balance,
-    largest_deposit: stats.largest_deposit,
-    transaction_count: stats.transaction_count,
+    statement_month: monthStr && monthStr !== 'null' ? parseInt(monthStr) : (analysis.statement_month ?? null),
+    statement_year: yearStr && yearStr !== 'null' ? parseInt(yearStr) : (analysis.statement_year ?? null),
+    total_deposits: analysis.total_deposits ?? 0,
+    total_withdrawals: analysis.total_withdrawals ?? 0,
+    average_daily_balance: analysis.average_daily_balance ?? null,
+    nsf_count: analysis.nsf_count ?? 0,
+    ending_balance: analysis.ending_balance != null ? analysis.ending_balance : null,
+    largest_deposit: analysis.largest_single_deposit != null ? analysis.largest_single_deposit : null,
+    transaction_count: (analysis.deposit_count || 0) + (analysis.withdrawal_count || 0),
     analysis_notes: analysisNotes,
-    raw_data: transactions,
+    raw_data: analysis,
   }
 
   const { data: statement, error: stmtError } = await supabase
@@ -71,23 +42,6 @@ export async function createBankStatement(formData: FormData) {
     .single()
 
   if (stmtError) throw new Error(stmtError.message)
-
-  // Insert transactions
-  if (transactions.length > 0) {
-    const txRows = transactions.map(tx => ({
-      statement_id: statement.id,
-      user_id: user.id,
-      transaction_date: tx.transaction_date,
-      description: tx.description,
-      amount: tx.amount,
-      transaction_type: tx.transaction_type,
-      balance: tx.balance,
-      is_nsf: tx.is_nsf,
-    }))
-
-    const { error: txError } = await supabase.from('bank_transactions').insert(txRows)
-    if (txError) throw new Error(txError.message)
-  }
 
   revalidatePath('/bank-statements')
   revalidatePath(`/contacts/${contactId}`)
