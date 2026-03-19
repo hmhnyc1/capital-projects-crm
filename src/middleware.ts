@@ -1,8 +1,37 @@
-import { type NextRequest } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+const protectedRoutes = [
+  '/dashboard',
+  '/contacts',
+  '/deals',
+  '/activities',
+  '/portfolio',
+  '/payments',
+  '/bank-statements',
+]
+
+const authRoutes = ['/login', '/signup']
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  const isProtected = protectedRoutes.some(route => pathname.startsWith(route))
+  const isAuthRoute = authRoutes.includes(pathname)
+
+  // Supabase sets a cookie named sb-<project-ref>-auth-token
+  const hasSession = request.cookies.getAll().some(
+    cookie => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
+  )
+
+  if (!hasSession && isProtected) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (hasSession && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {
