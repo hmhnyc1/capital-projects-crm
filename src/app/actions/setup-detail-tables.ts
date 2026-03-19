@@ -163,31 +163,47 @@ export async function setupDetailTables() {
     // Create tables
     console.log('[setupDetailTables] 📝 Creating tables...')
     for (let i = 0; i < createTableStatements.length; i++) {
-      const { error } = await supabase.rpc('exec_sql', {
-        sql: createTableStatements[i],
-      }).catch(() => ({ error: { message: 'RPC not available' } }))
+      try {
+        const { error } = await (supabase as any).rpc('exec_sql', {
+          sql: createTableStatements[i],
+        })
 
-      if (error && !error.message.includes('RPC')) {
-        console.warn(`[setupDetailTables] ⚠️  Table creation ${i + 1} issue:`, error.message)
+        if (error && !String(error.message).includes('RPC')) {
+          console.warn(`[setupDetailTables] ⚠️  Table creation ${i + 1} issue:`, error.message)
+        }
+      } catch (err) {
+        console.warn(`[setupDetailTables] ⚠️  Table creation ${i + 1} failed:`, err instanceof Error ? err.message : String(err))
       }
     }
 
     // Create indices
     console.log('[setupDetailTables] 📊 Creating indices...')
     for (const stmt of createIndexStatements) {
-      await supabase.rpc('exec_sql', { sql: stmt }).catch(() => null)
+      try {
+        await (supabase as any).rpc('exec_sql', { sql: stmt })
+      } catch (err) {
+        // Ignore index creation errors
+      }
     }
 
     // Enable RLS
     console.log('[setupDetailTables] 🔐 Enabling RLS...')
     for (const stmt of enableRLSStatements) {
-      await supabase.rpc('exec_sql', { sql: stmt }).catch(() => null)
+      try {
+        await (supabase as any).rpc('exec_sql', { sql: stmt })
+      } catch (err) {
+        // Ignore RLS enable errors
+      }
     }
 
     // Create RLS policies
     console.log('[setupDetailTables] 📋 Creating RLS policies...')
     for (const stmt of createRLSPolicies) {
-      await supabase.rpc('exec_sql', { sql: stmt }).catch(() => null)
+      try {
+        await (supabase as any).rpc('exec_sql', { sql: stmt })
+      } catch (err) {
+        // Ignore policy creation errors
+      }
     }
 
     console.log('[setupDetailTables] ✅ Setup complete!')
