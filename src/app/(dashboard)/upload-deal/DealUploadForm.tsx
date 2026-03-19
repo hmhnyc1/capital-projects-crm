@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react'
 import type { UploadedFile } from '@/types'
-import ReviewScreen from './ReviewScreen'
+import ReviewScreenNew from './ReviewScreenNew'
 import { generateLabel, sortBankStatements } from './utils'
 
 export default function DealUploadForm() {
@@ -49,14 +49,47 @@ export default function DealUploadForm() {
       stmtFormData.append('pdf', file)
 
       // Try parsers and collect results
-      const appResponse = await fetch('/api/parse-application', { method: 'POST', body: appFormData })
-      if (appResponse.ok) {
-        appResult = await appResponse.json()
+      try {
+        console.log(`[DealUploadForm] Parsing file ${index + 1}: ${file.name}`)
+        const appResponse = await fetch('/api/parse-application', { method: 'POST', body: appFormData })
+        console.log(`[DealUploadForm] Application parse response: ${appResponse.status} ${appResponse.statusText}`)
+        if (appResponse.ok) {
+          try {
+            const responseText = await appResponse.text()
+            console.log(`[DealUploadForm] Application response text: ${responseText.substring(0, 200)}...`)
+            appResult = JSON.parse(responseText)
+            console.log(`[DealUploadForm] Application parsed successfully:`, appResult?.data ? 'has data' : 'no data')
+          } catch (parseErr) {
+            console.error('Failed to parse application response JSON:', parseErr)
+            appResult = null
+          }
+        } else {
+          console.log(`[DealUploadForm] Application parse failed with status ${appResponse.status}`)
+        }
+      } catch (err) {
+        console.error('Application parse request failed:', err)
+        appResult = null
       }
 
-      const stmtResponse = await fetch('/api/parse-bank-statement', { method: 'POST', body: stmtFormData })
-      if (stmtResponse.ok) {
-        stmtResult = await stmtResponse.json()
+      try {
+        const stmtResponse = await fetch('/api/parse-bank-statement', { method: 'POST', body: stmtFormData })
+        console.log(`[DealUploadForm] Bank statement parse response: ${stmtResponse.status} ${stmtResponse.statusText}`)
+        if (stmtResponse.ok) {
+          try {
+            const responseText = await stmtResponse.text()
+            console.log(`[DealUploadForm] Bank statement response text: ${responseText.substring(0, 200)}...`)
+            stmtResult = JSON.parse(responseText)
+            console.log(`[DealUploadForm] Bank statement parsed successfully:`, stmtResult?.data ? 'has data' : 'no data')
+          } catch (parseErr) {
+            console.error('Failed to parse bank statement response JSON:', parseErr)
+            stmtResult = null
+          }
+        } else {
+          console.log(`[DealUploadForm] Bank statement parse failed with status ${stmtResponse.status}`)
+        }
+      } catch (err) {
+        console.error('Bank statement parse request failed:', err)
+        stmtResult = null
       }
 
       // Determine type based on what was actually extracted
@@ -131,7 +164,7 @@ export default function DealUploadForm() {
 
   // If all parsed, show review screen
   if (allParsed && files.some(f => f.type === 'application')) {
-    return <ReviewScreen files={sorted} />
+    return <ReviewScreenNew files={sorted} />
   }
 
   return (

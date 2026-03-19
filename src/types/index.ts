@@ -138,6 +138,8 @@ export interface BankTransaction {
 export interface ParsedApplication {
   business_legal_name: string | null
   dba: string | null
+  entity_type: string | null
+  ownership_percentage: number | null
   owner_name: string | null
   owner_dob: string | null
   owner_ssn_last4: string | null
@@ -146,8 +148,10 @@ export interface ParsedApplication {
   business_email: string | null
   ein: string | null
   time_in_business_years: number | null
+  industry: string | null
   stated_monthly_revenue: number | null
   bank_name: string | null
+  account_type: string | null
   landlord_name: string | null
   monthly_rent: number | null
   use_of_funds: string | null
@@ -155,6 +159,9 @@ export interface ParsedApplication {
 }
 
 export interface ParsedBankStatement {
+  statement_period_text: string | null
+  statement_start_date: string | null
+  statement_end_date: string | null
   statement_month: number
   statement_year: number
   starting_balance: number | null
@@ -170,10 +177,12 @@ export interface ParsedBankStatement {
   nsf_amounts: number[]
   mca_debits: Array<{
     funder_name: string
-    daily_amount: number | null
+    daily_debit_amount: number | null
+    daily_amount?: number | null
     weekly_amount: number | null
     frequency: 'daily' | 'weekly'
     total_monthly: number
+    amount?: number
   }> | null
   total_mca_holdback: number
   holdback_percentage: number

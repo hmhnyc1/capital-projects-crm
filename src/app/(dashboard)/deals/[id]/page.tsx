@@ -1,389 +1,356 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Edit, DollarSign, Calendar, TrendingUp, CreditCard } from 'lucide-react'
-import Badge from '@/components/ui/Badge'
-import ActivityItem from '@/components/ActivityItem'
-import { format } from 'date-fns'
-import { Activity, DealStage, MCAStatus, Payment } from '@/types'
-import DeleteDealButton from './DeleteDealButton'
-import clsx from 'clsx'
+import { ArrowLeft, Calendar, AlertCircle } from 'lucide-react'
+import ReviewScreenNew from '@/app/(dashboard)/upload-deal/ReviewScreenNew'
+import type { UploadedFile, ParsedApplication, ParsedBankStatement } from '@/types'
 
-const STAGES: DealStage[] = ['Prospecting', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
-
-const stageBadgeVariant: Record<string, 'default' | 'info' | 'warning' | 'success' | 'danger' | 'purple'> = {
-  'Prospecting': 'default',
-  'Qualified': 'info',
-  'Proposal': 'warning',
-  'Negotiation': 'purple',
-  'Closed Won': 'success',
-  'Closed Lost': 'danger',
+interface DealData {
+  id: string
+  title: string
+  deal_number: string
+  merchant_id: string
+  risk_score: number
+  risk_grade: string
+  executive_summary: string
+  status: string
+  position_recommendation: string
+  created_at: string
 }
 
-const mcaStatusColors: Record<MCAStatus, string> = {
-  active: 'bg-green-100 text-green-700',
-  paid_off: 'bg-blue-100 text-blue-700',
-  defaulted: 'bg-red-100 text-red-700',
-  renewed: 'bg-purple-100 text-purple-700',
+interface MerchantData {
+  id: string
+  business_legal_name: string | null
+  dba: string | null
+  entity_type: string | null
+  owner_name: string | null
+  owner_dob: string | null
+  owner_ssn_last4: string | null
+  business_address: string | null
+  business_phone: string | null
+  business_email: string | null
+  ein: string | null
+  time_in_business_years: number | null
+  industry: string | null
+  stated_monthly_revenue: number | null
+  bank_name: string | null
+  account_type: string | null
+  landlord_name: string | null
+  monthly_rent: number | null
+  use_of_funds: string | null
+  ownership_percentage: number | null
 }
 
-const paymentStatusColors: Record<string, string> = {
-  completed: 'bg-green-100 text-green-700',
-  scheduled: 'bg-blue-100 text-blue-700',
-  failed: 'bg-red-100 text-red-700',
-  returned: 'bg-orange-100 text-orange-700',
-  nsf: 'bg-red-100 text-red-800',
+interface BankStatementData {
+  id: string
+  statement_month: number
+  statement_year: number
+  statement_period_start: string | null
+  statement_period_end: string | null
+  starting_balance: number | null
+  ending_balance: number | null
+  total_deposits: number | null
+  true_revenue: number | null
+  non_revenue_deposits: number | null
+  average_daily_balance: number | null
+  lowest_daily_balance: number | null
+  nsf_count: number
+  nsf_dates: string[] | null
+  nsf_amounts: number[] | null
+  total_mca_holdback: number | null
+  holdback_percentage: number | null
+  net_cash_flow: number | null
 }
 
-export default async function DealDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+interface MCAPosData {
+  funder_name: string
+  daily_debit_amount: number | null
+  weekly_amount: number | null
+  total_monthly: number | null
+}
 
-  const [{ data: deal }, { data: activities }, { data: payments }] = await Promise.all([
-    supabase
-      .from('deals')
-      .select('*, contacts(id, first_name, last_name, company, email, phone)')
-      .eq('id', params.id)
-      .single(),
-    supabase
-      .from('activities')
-      .select('*, contacts(first_name, last_name, company)')
-      .eq('deal_id', params.id)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('payments')
-      .select('*')
-      .eq('deal_id', params.id)
-      .order('payment_date', { ascending: false })
-      .limit(20),
-  ])
+interface DocumentData {
+  id: string
+  file_name: string
+  file_size: number
+  document_type: 'application' | 'bank_statement'
+  storage_path: string
+}
 
-  if (!deal) notFound()
+interface ActivityData {
+  id: string
+  action_type: string
+  action_title: string
+  action_description: string | null
+  created_at: string
+  risk_score: number | null
+}
 
-  const stageIndex = STAGES.indexOf(deal.stage as DealStage)
-  const hasMCA = deal.advance_amount !== null
+export default function DealDetailPage({ params }: { params: { id: string } }) {
+  const [files, setFiles] = useState<UploadedFile[]>([])
+  const [deal, setDeal] = useState<DealData | null>(null)
+  const [merchant, setMerchant] = useState<MerchantData | null>(null)
+  const [activities, setActivities] = useState<ActivityData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const payback = Number(deal.payback_amount) || 0
-  const totalPaid = Number(deal.total_paid) || 0
-  const remaining = Number(deal.remaining_balance) ?? 0
-  const paidPct = payback > 0 ? Math.min(100, (totalPaid / payback) * 100) : 0
-  const remainPct = payback > 0 ? (remaining / payback) * 100 : 0
-  let progressColor = 'bg-green-500'
-  if (remainPct < 25) progressColor = 'bg-red-500'
-  else if (remainPct < 50) progressColor = 'bg-yellow-500'
+  useEffect(() => {
+    async function loadDealData() {
+      const supabase = createClient()
+      try {
+        // Query deal
+        const { data: dealData, error: dealError } = await supabase
+          .from('deals')
+          .select('*')
+          .eq('id', params.id)
+          .single()
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <Link
-          href="/deals"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-4"
-        >
+        if (dealError || !dealData) {
+          setError('Deal not found')
+          return
+        }
+
+        setDeal(dealData)
+
+        // Query contact (merchant)
+        const { data: merchantData } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('id', dealData.merchant_id)
+          .single()
+
+        setMerchant(merchantData)
+
+        // Query bank statements
+        const { data: statementsData } = await supabase
+          .from('bank_statements_detailed')
+          .select('*')
+          .eq('deal_id', params.id)
+          .order('statement_year, statement_month', { ascending: true })
+
+        // Query MCA positions
+        const { data: mcaData } = await supabase
+          .from('mca_positions_detailed')
+          .select('*')
+          .eq('deal_id', params.id)
+
+        // Query documents
+        const { data: docsData } = await supabase
+          .from('documents_detailed')
+          .select('*')
+          .eq('deal_id', params.id)
+          .order('document_type', { ascending: true })
+
+        // Query activities
+        const { data: activitiesData } = await supabase
+          .from('deal_activities')
+          .select('*')
+          .eq('deal_id', params.id)
+          .order('created_at', { ascending: false })
+
+        setActivities(activitiesData || [])
+
+        // Reconstruct files array for ReviewScreenNew
+        const reconstructedFiles: UploadedFile[] = []
+
+        // Add application (first document that's an application)
+        const appDoc = docsData?.find(d => d.document_type === 'application')
+        if (merchantData && appDoc) {
+          const application: ParsedApplication = {
+            business_legal_name: merchantData.business_legal_name,
+            dba: merchantData.dba,
+            entity_type: merchantData.entity_type,
+            ownership_percentage: merchantData.ownership_percentage,
+            owner_name: merchantData.owner_name,
+            owner_dob: merchantData.owner_dob,
+            owner_ssn_last4: merchantData.owner_ssn_last4,
+            business_address: merchantData.business_address,
+            business_phone: merchantData.business_phone,
+            business_email: merchantData.business_email,
+            ein: merchantData.ein,
+            time_in_business_years: merchantData.time_in_business_years,
+            industry: merchantData.industry,
+            stated_monthly_revenue: merchantData.stated_monthly_revenue,
+            bank_name: merchantData.bank_name,
+            account_type: merchantData.account_type,
+            landlord_name: merchantData.landlord_name,
+            monthly_rent: merchantData.monthly_rent,
+            use_of_funds: merchantData.use_of_funds,
+            co_owners: null,
+          }
+
+          reconstructedFiles.push({
+            file: new File([], appDoc.file_name),
+            type: 'application',
+            parsing: false,
+            parsed: true,
+            error: null,
+            label: appDoc.file_name,
+            data: application,
+          })
+        }
+
+        // Add bank statements
+        if (statementsData) {
+          statementsData.forEach(stmt => {
+            // Build MCA debits for this statement
+            const mcaDebits = mcaData
+              ?.filter(mca => {
+                const firstMonth = mca.first_seen_month?.split('-')
+                const lastMonth = mca.last_seen_month?.split('-')
+                if (!firstMonth || !lastMonth) return false
+                const stmtDate = `${stmt.statement_year}-${String(stmt.statement_month).padStart(2, '0')}`
+                return stmtDate >= firstMonth && stmtDate <= lastMonth
+              })
+              .map(mca => ({
+                funder_name: mca.funder_name,
+                daily_debit_amount: mca.daily_debit_amount || 0,
+                weekly_amount: mca.weekly_amount || 0,
+                frequency: 'daily' as const,
+                total_monthly: mca.monthly_total || 0,
+              })) || []
+
+            const statement: ParsedBankStatement = {
+              statement_period_text: `${stmt.statement_period_start} to ${stmt.statement_period_end}`,
+              statement_start_date: stmt.statement_period_start,
+              statement_end_date: stmt.statement_period_end,
+              statement_month: stmt.statement_month,
+              statement_year: stmt.statement_year,
+              starting_balance: stmt.starting_balance,
+              ending_balance: stmt.ending_balance,
+              total_deposits: stmt.total_deposits || 0,
+              deposit_count: 0,
+              true_revenue_deposits: stmt.true_revenue || 0,
+              non_revenue_deposits: stmt.non_revenue_deposits || 0,
+              average_daily_balance: stmt.average_daily_balance || 0,
+              lowest_daily_balance: stmt.lowest_daily_balance,
+              nsf_count: stmt.nsf_count || 0,
+              nsf_dates: stmt.nsf_dates || [],
+              nsf_amounts: stmt.nsf_amounts || [],
+              mca_debits: mcaDebits,
+              total_mca_holdback: stmt.total_mca_holdback || 0,
+              holdback_percentage: stmt.holdback_percentage || 0,
+              net_cash_flow_after_mca: stmt.net_cash_flow || 0,
+              days_below_500: 0,
+              days_below_1000: 0,
+            }
+
+            const stmtDoc = docsData?.find(d => d.document_type === 'bank_statement' && d.statement_month === stmt.statement_month && d.statement_year === stmt.statement_year)
+
+            reconstructedFiles.push({
+              file: new File([], stmtDoc?.file_name || `statement-${stmt.statement_month}-${stmt.statement_year}`),
+              type: 'bank_statement',
+              parsing: false,
+              parsed: true,
+              error: null,
+              label: stmtDoc?.file_name || `${stmt.statement_month}/${stmt.statement_year}`,
+              data: statement,
+            })
+          })
+        }
+
+        setFiles(reconstructedFiles)
+        setLoading(false)
+      } catch (err) {
+        console.error('Error loading deal data:', err)
+        setError('Failed to load deal data')
+        setLoading(false)
+      }
+    }
+
+    loadDealData()
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
+            <p className="text-slate-600">Loading deal...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !deal || !merchant) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <Link href="/deals" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 mb-6">
           <ArrowLeft className="w-4 h-4" />
           Back to Deals
         </Link>
-
-        <div className="flex items-start justify-between">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{deal.title}</h1>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <Badge variant={stageBadgeVariant[deal.stage] || 'default'}>{deal.stage}</Badge>
-              {deal.mca_status && (
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${mcaStatusColors[deal.mca_status as MCAStatus]}`}>
-                  {deal.mca_status === 'paid_off' ? 'Paid Off' : deal.mca_status.charAt(0).toUpperCase() + deal.mca_status.slice(1)}
-                </span>
-              )}
-              {deal.value && (
-                <span className="text-slate-600 text-sm font-medium">${Number(deal.value).toLocaleString()}</span>
-              )}
-            </div>
+            <h3 className="font-semibold text-red-900">Error</h3>
+            <p className="text-red-700 text-sm mt-1">{error || 'Failed to load deal'}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <DeleteDealButton id={deal.id} title={deal.title} />
-            <Link
-              href={`/deals/${deal.id}/edit`}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950">
+      {/* Header */}
+      <div className="border-b border-slate-800 bg-slate-900 p-6 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto">
+          <Link href="/deals" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 mb-4">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Deals
+          </Link>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">{merchant.business_legal_name || merchant.dba || 'Merchant'}</h1>
+              <p className="text-sm text-slate-400 mt-1">{deal.deal_number}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-slate-100">{deal.risk_grade}</div>
+              <p className="text-sm text-slate-400">Risk Grade</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Stage Progress */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
-        <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">Stage Progress</h2>
-        <div className="flex items-center gap-0">
-          {STAGES.map((stage, i) => {
-            const isActive = i === stageIndex
-            const isPast = i < stageIndex
-            const isClosedLost = stage === 'Closed Lost' && deal.stage === 'Closed Lost'
-            return (
-              <div key={stage} className="flex-1 flex items-center">
-                <div className="flex-1">
-                  <div
-                    className={clsx(
-                      'h-2 rounded-sm',
-                      isClosedLost ? 'bg-red-400' :
-                      isPast || isActive ? 'bg-blue-500' : 'bg-slate-200'
-                    )}
-                  />
-                  <p className={clsx(
-                    'text-xs mt-1.5 truncate',
-                    isActive ? 'font-semibold text-blue-700' : isPast ? 'text-slate-500' : 'text-slate-400'
-                  )}>
-                    {stage}
-                  </p>
-                </div>
-                {i < STAGES.length - 1 && <div className="w-1" />}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* MCA Info Panel */}
-      {hasMCA && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">MCA Details</h2>
-            <Link href="/payments/new" className="text-xs text-blue-600 hover:underline font-medium">
-              + Record Payment
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
-            <div>
-              <p className="text-xs text-slate-500">Advance Amount</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">
-                {deal.advance_amount ? `$${Number(deal.advance_amount).toLocaleString()}` : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Factor Rate</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">
-                {deal.factor_rate ? `${Number(deal.factor_rate).toFixed(2)}x` : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Payback Amount</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">
-                {deal.payback_amount ? `$${Number(deal.payback_amount).toLocaleString()}` : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Daily Payment</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">
-                {deal.daily_payment ? `$${Number(deal.daily_payment).toLocaleString()}` : '—'}
-                {deal.payment_frequency && <span className="text-xs text-slate-500 font-normal ml-1">/ {deal.payment_frequency}</span>}
-              </p>
-            </div>
-          </div>
-
-          {/* Balance Progress Bar */}
-          {payback > 0 && (
-            <div className="mb-4">
-              <div className="flex justify-between text-xs text-slate-600 mb-1.5">
-                <span>Total Paid: <span className="font-semibold text-green-700">${totalPaid.toLocaleString()}</span></span>
-                <span>Remaining: <span className="font-semibold text-slate-900">${remaining.toLocaleString()}</span></span>
-              </div>
-              <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${progressColor}`}
-                  style={{ width: `${paidPct}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-500 mt-1">{Math.round(paidPct)}% collected of ${payback.toLocaleString()} payback</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-slate-500">Position</p>
-              <p className="text-sm font-medium text-slate-700">{deal.position ? `${deal.position}${deal.position === 1 ? 'st' : deal.position === 2 ? 'nd' : deal.position === 3 ? 'rd' : 'th'} Position` : '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Origination</p>
-              <p className="text-sm font-medium text-slate-700">
-                {deal.origination_date ? format(new Date(deal.origination_date), 'MMM d, yyyy') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Maturity</p>
-              <p className="text-sm font-medium text-slate-700">
-                {deal.maturity_date ? format(new Date(deal.maturity_date), 'MMM d, yyyy') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Funder</p>
-              <p className="text-sm font-medium text-slate-700">{deal.funder_name ?? '—'}</p>
-            </div>
-          </div>
+      {/* Review Screen */}
+      {files.length > 0 && (
+        <div className="bg-slate-950 py-6">
+          <ReviewScreenNew files={files} readOnly={true} />
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Deal Info */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">Deal Info</h2>
-            <div className="space-y-3">
-              {deal.value !== null && deal.value !== undefined && (
-                <div className="flex items-center gap-3">
-                  <DollarSign className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500">Value</p>
-                    <p className="text-sm font-semibold text-slate-900">${Number(deal.value).toLocaleString()}</p>
+      {/* Activity Timeline */}
+      {activities.length > 0 && (
+        <div className="max-w-7xl mx-auto px-6 py-8 border-t border-slate-800">
+          <h2 className="text-lg font-semibold text-white mb-6">Activity Timeline</h2>
+          <div className="space-y-4">
+            {activities.map((activity) => (
+              <div key={activity.id} className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-500/10 border border-blue-500/20">
+                      <Calendar className="h-5 w-5 text-blue-400" />
+                    </div>
                   </div>
-                </div>
-              )}
-              {deal.probability !== null && deal.probability !== undefined && (
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500">Probability</p>
-                    <p className="text-sm font-semibold text-slate-900">{deal.probability}%</p>
-                  </div>
-                </div>
-              )}
-              {deal.expected_close_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500">Expected Close</p>
-                    <p className="text-sm font-medium text-slate-900">
-                      {format(new Date(deal.expected_close_date), 'MMM d, yyyy')}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-white">{activity.action_title}</h3>
+                    {activity.action_description && (
+                      <p className="text-sm text-slate-400 mt-1">{activity.action_description}</p>
+                    )}
+                    <p className="text-xs text-slate-500 mt-2">
+                      {new Date(activity.created_at).toLocaleString()}
                     </p>
                   </div>
                 </div>
-              )}
-              <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-500">Created</p>
-                  <p className="text-sm text-slate-700">{format(new Date(deal.created_at), 'MMM d, yyyy')}</p>
-                </div>
               </div>
-            </div>
-          </div>
-
-          {/* Contact */}
-          {deal.contacts && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">Merchant</h2>
-              <Link href={`/contacts/${deal.contacts.id}`} className="flex items-center gap-3 group">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-xs font-semibold">
-                    {deal.contacts.first_name[0]}{deal.contacts.last_name[0]}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
-                    {deal.contacts.first_name} {deal.contacts.last_name}
-                  </p>
-                  {deal.contacts.company && <p className="text-xs text-slate-500">{deal.contacts.company}</p>}
-                </div>
-              </Link>
-              {deal.contacts.email && (
-                <a href={`mailto:${deal.contacts.email}`} className="mt-3 flex items-center gap-2 text-xs text-blue-600 hover:underline">
-                  {deal.contacts.email}
-                </a>
-              )}
-            </div>
-          )}
-
-          {deal.description && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-3">Description</h2>
-              <p className="text-sm text-slate-600 leading-relaxed">{deal.description}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Payment History + Activity */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Payment History */}
-          {hasMCA && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">
-                  Payment History ({payments?.length ?? 0})
-                </h2>
-                <Link
-                  href="/payments/new"
-                  className="text-xs text-blue-600 hover:underline font-medium"
-                >
-                  + Record Payment
-                </Link>
-              </div>
-              {payments && payments.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-xs text-slate-500 uppercase">
-                        <th className="text-left pb-2">Date</th>
-                        <th className="text-right pb-2">Amount</th>
-                        <th className="pb-2">Status</th>
-                        <th className="pb-2">Type</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {(payments as Payment[]).map(pmt => (
-                        <tr key={pmt.id}>
-                          <td className="py-2 text-slate-700">
-                            {new Date(pmt.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </td>
-                          <td className="py-2 text-right font-semibold text-slate-900">
-                            ${Number(pmt.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-2 text-center">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${paymentStatusColors[pmt.status] ?? 'bg-slate-100 text-slate-700'}`}>
-                              {pmt.status}
-                            </span>
-                          </td>
-                          <td className="py-2 text-center text-slate-500 capitalize">{pmt.payment_type}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <CreditCard className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No payments recorded</p>
-                  <Link href="/payments/new" className="mt-2 text-xs text-blue-600 hover:underline block">Record first payment</Link>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Activity */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">
-                Activity ({activities?.length ?? 0})
-              </h2>
-              <Link
-                href={`/activities/new?deal_id=${deal.id}`}
-                className="text-xs text-blue-600 hover:underline font-medium"
-              >
-                + Log Activity
-              </Link>
-            </div>
-            {activities && activities.length > 0 ? (
-              <div className="space-y-4 divide-y divide-slate-100">
-                {(activities as Activity[]).map(activity => (
-                  <div key={activity.id} className="pt-4 first:pt-0">
-                    <ActivityItem activity={activity} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400 py-8 text-center">No activities logged yet</p>
-            )}
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
