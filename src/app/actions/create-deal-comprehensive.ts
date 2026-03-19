@@ -446,10 +446,9 @@ export async function saveDocumentsAndActivity(
   revalidatePath(`/deals/${dealId}`)
 }
 
-// Original unified function - now calls stages in sequence
+// NEW: Refactored to accept just job ID - payload is tiny!
 export async function createDealComprehensive(
-  application: ParsedApplication,
-  statements: ParsedBankStatement[],
+  jobId: string,
   dealId: string,
   filePaths: string[],
   position: 'approved' | 'declined' | 'counter' | 'review',
@@ -457,6 +456,17 @@ export async function createDealComprehensive(
   uploadedFiles?: Array<{ name: string; size: number }>
 ) {
   try {
+    console.log('[createDealComprehensive] 🚀 Starting deal creation with job ID:', jobId)
+
+    // Fetch parsed data from Supabase (ONLY request - no payload data sent!)
+    const { getParsingJobData } = await import('./save-parsed-data')
+    const jobData = await getParsingJobData(jobId)
+
+    const application = jobData.application as ParsedApplication
+    const statements = jobData.statements as ParsedBankStatement[]
+
+    console.log('[createDealComprehensive] ✅ Fetched parsed data: app + ' + statements.length + ' statements')
+
     // Stage 1: Create contact
     console.log('[createDealComprehensive] Stage 1: Creating contact...')
     const merchant = await createContact(application)
@@ -487,7 +497,12 @@ export async function createDealComprehensive(
     await saveDocumentsAndActivity(filePaths, deal.id, merchant.id, position, riskMetrics, uploadedFiles)
     console.log('[createDealComprehensive] Documents and activity saved')
 
-    console.log('[createDealComprehensive] All stages complete, redirecting...')
+    // Cleanup temp data
+    const { cleanupParsingJob } = await import('./save-parsed-data')
+    await cleanupParsingJob(jobId)
+    console.log('[createDealComprehensive] 🗑️ Cleaned up temp parsing data')
+
+    console.log('[createDealComprehensive] ✅ All stages complete, redirecting...')
     redirect(`/deals/${deal.id}`)
   } catch (error) {
     console.error('Error in createDealComprehensive:', error)

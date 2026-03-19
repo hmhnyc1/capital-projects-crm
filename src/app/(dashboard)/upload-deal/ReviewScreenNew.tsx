@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AlertTriangle, ChevronDown, ChevronUp, FileText, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
 import { createDealComprehensive } from '@/app/actions/create-deal-comprehensive'
+import { saveParsedApplication, saveParsedBankStatement, createParsingJob } from '@/app/actions/save-parsed-data'
 import { calculateRiskScore } from './RiskScorer'
 import { calculateMonthlySummary, calculatePortfolioMetrics, extractMCAPositions, generateStatementMetrics, findLowestAndHighestMonth, getMonthLabel, getRevenueVariance } from './utils'
 import type { UploadedFile, ParsedApplication, ParsedBankStatement } from '@/types'
@@ -65,12 +66,14 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
   async function handleCreate(status: 'approved' | 'declined' | 'counter' | 'review') {
     setCreating(true)
     try {
-      console.log('[ReviewScreen] Creating deal with status:', status)
+      console.log('[ReviewScreen] 🚀 Creating deal with status:', status)
 
       if (!app) {
         throw new Error('Application data is missing')
       }
 
+      // STEP 1: Upload files to storage
+      console.log('[ReviewScreen] Step 1/4: Uploading files...')
       const uploadFormData = new FormData()
       files.forEach(f => uploadFormData.append('files', f.file))
 
@@ -85,11 +88,33 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
       }
 
       const { dealId, uploadedPaths } = await uploadResponse.json()
+      console.log('[ReviewScreen] ✅ Files uploaded, dealId:', dealId)
 
+      // STEP 2: Save parsed data to temp tables (tiny payload per save)
+      console.log('[ReviewScreen] Step 2/4: Saving parsed data to Supabase...')
+      const { applicationId } = await saveParsedApplication(app)
+      console.log('[ReviewScreen] ✅ Application saved, ID:', applicationId)
+
+      const statementIds: string[] = []
+      for (const stmt of statements) {
+        const { statementId } = await saveParsedBankStatement(stmt)
+        statementIds.push(statementId)
+        console.log('[ReviewScreen] ✅ Statement saved, ID:', statementId)
+      }
+      console.log('[ReviewScreen] ✅ All parsed data saved to temp tables')
+
+      // STEP 3: Create parsing job
+      console.log('[ReviewScreen] Step 3/4: Creating parsing job...')
+      const { jobId } = await createParsingJob(applicationId, statementIds)
+      console.log('[ReviewScreen] ✅ Parsing job created, jobId:', jobId)
+
+      // STEP 4: Create deal with just the job ID (TINY PAYLOAD!)
+      console.log('[ReviewScreen] Step 4/4: Creating deal from parsed data...')
       const fileInfos = files.map(f => ({ name: f.label, size: f.file.size }))
+
+      // THIS IS THE KEY FIX: Only send jobId string, not the actual parsed data!
       await createDealComprehensive(
-        app,
-        statements,
+        jobId,  // ← ONLY THIS - just a string!
         dealId,
         uploadedPaths,
         status as 'approved' | 'declined' | 'counter' | 'review',
@@ -100,6 +125,7 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
         },
         fileInfos
       )
+      console.log('[ReviewScreen] ✅ Deal creation complete!')
     } catch (err) {
       alert('Error creating deal: ' + (err instanceof Error ? err.message : 'Unknown error'))
       setCreating(false)
