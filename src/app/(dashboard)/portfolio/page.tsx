@@ -39,7 +39,7 @@ export default async function PortfolioPage() {
 
   const { data: deals } = await supabase
     .from('deals')
-    .select('*, contacts(id, first_name, last_name, company)')
+    .select('*, contacts!deals_merchant_id_fkey(id, first_name, last_name, company)')
     .not('advance_amount', 'is', null)
     .order('remaining_balance', { ascending: false })
 

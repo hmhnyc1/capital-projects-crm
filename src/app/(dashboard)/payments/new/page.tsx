@@ -8,7 +8,7 @@ export default async function NewPaymentPage() {
 
   const { data: rawDeals } = await supabase
     .from('deals')
-    .select('id, title, daily_payment, mca_status, contacts(first_name, last_name, company)')
+    .select('id, title, daily_payment, mca_status, contacts!deals_merchant_id_fkey(first_name, last_name, company)')
     .not('advance_amount', 'is', null)
     .order('title')
 

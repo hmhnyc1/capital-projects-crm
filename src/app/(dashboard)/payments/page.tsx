@@ -29,7 +29,7 @@ export default async function PaymentsPage() {
   ] = await Promise.all([
     supabase
       .from('payments')
-      .select('*, deals(id, title, contacts(first_name, last_name, company))')
+      .select('*, deals(id, title, contacts!deals_merchant_id_fkey(first_name, last_name, company))')
       .order('payment_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(100),

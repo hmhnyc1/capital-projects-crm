@@ -14,7 +14,7 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
 
   const [{ data: contact }, { data: deals }, { data: activities }] = await Promise.all([
     supabase.from('contacts').select('*').eq('id', params.id).single(),
-    supabase.from('deals').select('*, contacts(first_name, last_name, company)').eq('contact_id', params.id).order('created_at', { ascending: false }),
+    supabase.from('deals').select('*, contacts!deals_contact_id_fkey(first_name, last_name, company)').eq('contact_id', params.id).order('created_at', { ascending: false }),
     supabase.from('activities').select('*, contacts(first_name, last_name, company)').eq('contact_id', params.id).order('created_at', { ascending: false }),
   ])
 

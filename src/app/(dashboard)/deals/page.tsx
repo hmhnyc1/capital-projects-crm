@@ -20,7 +20,7 @@ export default async function DealsPage() {
 
   const { data: deals, error } = await supabase
     .from('deals')
-    .select('*, contacts(first_name, last_name, company)')
+    .select('*, contacts!deals_merchant_id_fkey(first_name, last_name, company)')
     .order('created_at', { ascending: false })
 
   const dealsByStage = STAGES.reduce((acc, stage) => {
