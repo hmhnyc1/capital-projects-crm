@@ -24,8 +24,24 @@ export default function ReviewScreen({ files }: { files: UploadedFile[] }) {
   async function handleCreate() {
     setCreating(true)
     try {
-      const pdfs = files.map(f => f.file)
-      await createDealFromUpload(app!, statements, pdfs)
+      // Upload files to storage first
+      const uploadFormData = new FormData()
+      files.forEach(f => uploadFormData.append('files', f.file))
+
+      const uploadResponse = await fetch('/api/upload-deal-files', {
+        method: 'POST',
+        body: uploadFormData,
+      })
+
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.json()
+        throw new Error(uploadError.error || 'File upload failed')
+      }
+
+      const { dealId, uploadedPaths } = await uploadResponse.json()
+
+      // Now create deal with file paths (all data is now serializable)
+      await createDealFromUpload(app!, statements, dealId, uploadedPaths)
     } catch (err) {
       alert('Error creating deal: ' + (err instanceof Error ? err.message : 'Unknown error'))
       setCreating(false)

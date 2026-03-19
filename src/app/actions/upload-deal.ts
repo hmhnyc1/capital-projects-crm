@@ -8,7 +8,8 @@ import type { ParsedApplication, ParsedBankStatement } from '@/types'
 export async function createDealFromUpload(
   application: ParsedApplication,
   statements: ParsedBankStatement[],
-  files: File[],
+  dealId: string,
+  filePaths: string[],
 ) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -38,7 +39,7 @@ export async function createDealFromUpload(
 
   if (merchantError) throw new Error(`Failed to create merchant: ${merchantError.message}`)
 
-  // Create deal
+  // Create deal with file paths stored in raw_data
   const dealData = {
     user_id: user.id,
     contact_id: merchant.id,
@@ -51,7 +52,11 @@ export async function createDealFromUpload(
     daily_payment: null,
     origination_date: new Date().toISOString().split('T')[0],
     description: `Uploaded ${statements.length} bank statements`,
-    raw_data: { application, statements },
+    raw_data: {
+      application,
+      statements,
+      uploadedFilePaths: filePaths,
+    },
   }
 
   const { data: deal, error: dealError } = await supabase
@@ -61,15 +66,6 @@ export async function createDealFromUpload(
     .single()
 
   if (dealError) throw new Error(`Failed to create deal: ${dealError.message}`)
-
-  // Upload PDFs to Supabase Storage
-  for (const file of files) {
-    const path = `deals/${deal.id}/${Date.now()}-${file.name}`
-    const arrayBuffer = await file.arrayBuffer()
-    await supabase.storage
-      .from('deal-documents')
-      .upload(path, Buffer.from(arrayBuffer), { cacheControl: '3600', upsert: false })
-  }
 
   revalidatePath('/deals')
   revalidatePath(`/deals/${deal.id}`)
