@@ -7,122 +7,124 @@ export const maxDuration = 300
 
 // Helper function to calculate statement month/year based on period text
 function calculateStatementMonthAndYear(periodText: string | null) {
-  if (!periodText) {
-    console.log('[parse-bank-statement] No period text provided')
-    return { month: 1, year: 2024, startDate: null, endDate: null }
-  }
-
-  console.log('[parse-bank-statement] Parsing period text:', periodText)
-
-  // Extract dates from various formats:
-  // "January 01, 2026 through January 30, 2026"
-  // "November 24, 2025 through December 23, 2025"
-  // "December 1, 2025 - December 31, 2025"
-  // "01/01/2026 - 01/31/2026"
-
   const monthNames: Record<string, number> = {
     january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
     july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
   }
 
-  // Try to match pattern: "Month DD, YYYY through Month DD, YYYY"
-  let startMatch = periodText.match(/(\w+)\s+(\d{1,2}),\s+(\d{4})/)
-  let endMatch = periodText.match(/(\w+)\s+(\d{1,2}),\s+(\d{4})(?!.*\w+\s+\d{1,2})/g)
+  const monthLabels = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December']
 
-  if (!startMatch) {
-    // Try MM/DD/YYYY format
-    startMatch = periodText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-    if (startMatch) {
-      const month = parseInt(startMatch[1])
-      const day = parseInt(startMatch[2])
-      const year = parseInt(startMatch[3])
-      startMatch = [startMatch[0], month.toString(), day.toString(), year.toString()]
+  if (!periodText || periodText.trim().length === 0) {
+    console.log('[parse-bank-statement] ❌ No period text provided - returning "Unknown - check manually"')
+    return { label: 'Unknown - check manually', month: 0, year: 0, startDate: null, endDate: null }
+  }
+
+  console.log('[parse-bank-statement] 📋 Parsing period text:', periodText)
+
+  // Extract dates from various formats:
+  // "January 01, 2026 through January 30, 2026"
+  // "November 24, 2025 through December 23, 2025"
+  // "December 1, 2025 - December 31, 2025"
+  // "Statement Period: 12/01/2025 - 12/31/2025"
+
+  let startMonth: number | null = null
+  let startDay: number | null = null
+  let startYear: number | null = null
+  let endMonth: number | null = null
+  let endDay: number | null = null
+  let endYear: number | null = null
+
+  // Try pattern 1: "Month DD, YYYY"
+  const fullTextMatch = periodText.match(/(\w+)\s+(\d{1,2}),\s+(\d{4})/g)
+  if (fullTextMatch && fullTextMatch.length >= 2) {
+    // Parse first date
+    const firstMatch = fullTextMatch[0].match(/(\w+)\s+(\d{1,2}),\s+(\d{4})/)
+    if (firstMatch) {
+      const monthName = firstMatch[1].toLowerCase()
+      startMonth = monthNames[monthName]
+      startDay = parseInt(firstMatch[2])
+      startYear = parseInt(firstMatch[3])
+    }
+
+    // Parse second date
+    const secondMatch = fullTextMatch[fullTextMatch.length - 1].match(/(\w+)\s+(\d{1,2}),\s+(\d{4})/)
+    if (secondMatch) {
+      const monthName = secondMatch[1].toLowerCase()
+      endMonth = monthNames[monthName]
+      endDay = parseInt(secondMatch[2])
+      endYear = parseInt(secondMatch[3])
     }
   }
 
-  if (!startMatch) {
-    console.log('[parse-bank-statement] Could not parse start date from period text')
-    return { month: 1, year: 2024, startDate: null, endDate: null }
-  }
+  // Try pattern 2: "MM/DD/YYYY" format
+  if (!startMonth) {
+    const slashMatch = periodText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g)
+    if (slashMatch && slashMatch.length >= 2) {
+      const firstDate = slashMatch[0].split('/')
+      startMonth = parseInt(firstDate[0])
+      startDay = parseInt(firstDate[1])
+      startYear = parseInt(firstDate[2])
 
-  // Parse start date
-  let startMonth: number, startDay: number, startYear: number
-  if (isNaN(parseInt(startMatch[1]))) {
-    // Month name format
-    startMonth = monthNames[startMatch[1].toLowerCase()] || 1
-    startDay = parseInt(startMatch[2])
-    startYear = parseInt(startMatch[3])
-  } else {
-    // Numeric format
-    startMonth = parseInt(startMatch[1])
-    startDay = parseInt(startMatch[2])
-    startYear = parseInt(startMatch[3])
-  }
-
-  console.log(`[parse-bank-statement] Start date: ${startMonth}/${startDay}/${startYear}`)
-
-  // Extract end date - look for second occurrence
-  const parts = periodText.split(/through|to|-/)
-  let endMonth: number = startMonth, endDay: number = startDay, endYear: number = startYear
-
-  if (parts.length > 1) {
-    const endPart = parts[parts.length - 1].trim()
-    let endDateMatch = endPart.match(/(\w+)\s+(\d{1,2}),\s+(\d{4})/)
-
-    if (!endDateMatch) {
-      // Try MM/DD/YYYY format
-      endDateMatch = endPart.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-      if (endDateMatch) {
-        endMonth = parseInt(endDateMatch[1])
-        endDay = parseInt(endDateMatch[2])
-        endYear = parseInt(endDateMatch[3])
-      }
-    } else if (!isNaN(parseInt(endDateMatch[1]))) {
-      // Numeric month
-      endMonth = parseInt(endDateMatch[1])
-      endDay = parseInt(endDateMatch[2])
-      endYear = parseInt(endDateMatch[3])
-    } else {
-      // Month name
-      endMonth = monthNames[endDateMatch[1].toLowerCase()] || startMonth
-      endDay = parseInt(endDateMatch[2])
-      endYear = parseInt(endDateMatch[3])
+      const secondDate = slashMatch[slashMatch.length - 1].split('/')
+      endMonth = parseInt(secondDate[0])
+      endDay = parseInt(secondDate[1])
+      endYear = parseInt(secondDate[2])
     }
   }
 
-  console.log(`[parse-bank-statement] End date: ${endMonth}/${endDay}/${endYear}`)
+  // If we couldn't extract both dates, return unknown
+  if (!startMonth || !startDay || !startYear || !endMonth || !endDay || !endYear) {
+    console.log('[parse-bank-statement] ❌ Could not extract complete date range from period text')
+    console.log('[parse-bank-statement] ❌ Extracted: start=' + (startMonth ? `${startMonth}/${startDay}/${startYear}` : 'null') +
+      ', end=' + (endMonth ? `${endMonth}/${endDay}/${endYear}` : 'null'))
+    return { label: 'Unknown - check manually', month: 0, year: 0, startDate: null, endDate: null }
+  }
 
+  console.log(`[parse-bank-statement] 📅 Start date found: ${startMonth}/${startDay}/${startYear}`)
+  console.log(`[parse-bank-statement] 📅 End date found: ${endMonth}/${endDay}/${endYear}`)
+
+  // Create date objects
   const startDate = new Date(startYear, startMonth - 1, startDay)
   const endDate = new Date(endYear, endMonth - 1, endDay)
 
-  // Determine which month to label
-  let labelMonth: number, labelYear: number
+  console.log(`[parse-bank-statement] 📊 Start date object: ${startDate.toISOString()}`)
+  console.log(`[parse-bank-statement] 📊 End date object: ${endDate.toISOString()}`)
+
+  // Determine which month to label based on day count
+  let labelMonth: number
+  let labelYear: number
 
   if (startMonth === endMonth && startYear === endYear) {
-    // Single month - use that month
+    // Entire statement within one calendar month
     labelMonth = startMonth
     labelYear = startYear
-    console.log(`[parse-bank-statement] Single calendar month - using ${labelMonth}/${labelYear}`)
+    console.log(`[parse-bank-statement] ✅ Statement entirely within one month: ${monthLabels[labelMonth]} ${labelYear}`)
   } else {
-    // Spans two months - count days in each month
-    const daysInStartMonth = countDaysInMonth(startDay, startMonth, startYear, endDate)
-    const daysInEndMonth = countDaysInMonth(1, endMonth, endYear, endDate)
+    // Statement spans two months - count days in each
+    const daysInFirstMonth = getDaysInMonth(startDay, startMonth, startYear, endDay, endMonth, endYear)
+    const daysInSecondMonth = getDaysInMonth(startDay, startMonth, startYear, endDay, endMonth, endYear, false)
 
-    console.log(`[parse-bank-statement] Cross-month statement: ${daysInStartMonth} days in month ${startMonth}, ${daysInEndMonth} days in month ${endMonth}`)
+    console.log(`[parse-bank-statement] 📊 Days in first month (${monthLabels[startMonth]} ${startYear}): ${daysInFirstMonth}`)
+    console.log(`[parse-bank-statement] 📊 Days in second month (${monthLabels[endMonth]} ${endYear}): ${daysInSecondMonth}`)
 
-    if (daysInStartMonth > daysInEndMonth) {
+    if (daysInFirstMonth > daysInSecondMonth) {
       labelMonth = startMonth
       labelYear = startYear
-      console.log(`[parse-bank-statement] More days in start month - using ${labelMonth}/${labelYear}`)
+      console.log(`[parse-bank-statement] ✅ More days in first month - using: ${monthLabels[labelMonth]} ${labelYear}`)
     } else {
-      // End month has more days, or equal (use end month)
+      // Equal or more days in end month
       labelMonth = endMonth
       labelYear = endYear
-      console.log(`[parse-bank-statement] More days (or equal) in end month - using ${labelMonth}/${labelYear}`)
+      console.log(`[parse-bank-statement] ✅ More days (or equal) in second month - using: ${monthLabels[labelMonth]} ${labelYear}`)
     }
   }
 
+  const label = `${monthLabels[labelMonth]} ${labelYear}`
+  console.log(`[parse-bank-statement] 🎯 FINAL LABEL: "${label}"`)
+
   return {
+    label,
     month: labelMonth,
     year: labelYear,
     startDate: formatDate(startDate),
@@ -130,16 +132,19 @@ function calculateStatementMonthAndYear(periodText: string | null) {
   }
 }
 
-function countDaysInMonth(startDay: number, month: number, year: number, endDate: Date): number {
-  const periodStart = new Date(year, month - 1, startDay)
-  const periodEnd = new Date(year, month - 1 + 1, 0) // Last day of month
-
-  // If the period extends beyond this month, count only to month end or period end
-  const actualEnd = periodEnd < endDate ? periodEnd : endDate
-  if (periodStart > endDate) return 0
-
-  const daysDiff = Math.floor((actualEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-  return Math.max(0, daysDiff)
+function getDaysInMonth(
+  startDay: number, startMonth: number, startYear: number,
+  endDay: number, endMonth: number, endYear: number,
+  isFirstMonth: boolean = true
+): number {
+  if (isFirstMonth) {
+    // Count days from startDay to end of startMonth
+    const lastDayOfMonth = new Date(startYear, startMonth, 0).getDate()
+    return lastDayOfMonth - startDay + 1
+  } else {
+    // Count days from beginning of endMonth to endDay
+    return endDay
+  }
 }
 
 function formatDate(date: Date): string {
@@ -294,12 +299,14 @@ export async function POST(request: NextRequest) {
     parsed.statement_start_date = periodAnalysis.startDate
     parsed.statement_end_date = periodAnalysis.endDate
 
-    console.log('[parse-bank-statement] Statement labeling result:', {
-      periodText: parsed.statement_period_text,
-      startDate: periodAnalysis.startDate,
-      endDate: periodAnalysis.endDate,
-      label: `${periodAnalysis.month}/${periodAnalysis.year}`,
-    })
+    console.log('[parse-bank-statement] ═══════════════════════════════════════')
+    console.log('[parse-bank-statement] 📄 STATEMENT LABELING COMPLETE')
+    console.log('[parse-bank-statement] ───────────────────────────────────────')
+    console.log(`[parse-bank-statement] Period Text: "${parsed.statement_period_text}"`)
+    console.log(`[parse-bank-statement] Start Date: ${periodAnalysis.startDate}`)
+    console.log(`[parse-bank-statement] End Date: ${periodAnalysis.endDate}`)
+    console.log(`[parse-bank-statement] ✅ LABEL ASSIGNED: "${periodAnalysis.label}"`)
+    console.log('[parse-bank-statement] ═══════════════════════════════════════')
 
     const responseData = { data: parsed }
     console.log('[parse-bank-statement] Returning response with data keys:', Object.keys(parsed || {}))
