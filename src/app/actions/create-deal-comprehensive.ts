@@ -107,7 +107,7 @@ export async function createContact(
     entity_type: application.entity_type || null,
     owner_dob: application.owner_dob || null,
     owner_ssn_last4: application.owner_ssn_last4 || null,
-    ownership_percentage: application.ownership_percentage || null,
+    ownership_percentage: application.ownership_percentage ? Math.floor(application.ownership_percentage) : null,
     industry: application.industry || null,
     ein: application.ein || null,
     stated_monthly_revenue: application.stated_monthly_revenue || null,
@@ -116,7 +116,7 @@ export async function createContact(
     landlord_name: application.landlord_name || null,
     monthly_rent: application.monthly_rent || null,
     use_of_funds: application.use_of_funds || null,
-    time_in_business_years: application.time_in_business_years || null,
+    time_in_business_years: application.time_in_business_years ? Math.floor(application.time_in_business_years) : null,
     type: 'lead' as const,
     status: 'qualified' as const,
   }
