@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 const SYSTEM_PROMPT = `You are an expert MCA (Merchant Cash Advance) underwriter and bank statement analyst.
 You analyze bank statements to extract financial data and assess risk for MCA funding decisions.
 Always respond with valid JSON only — no markdown, no explanation, just the JSON object.`
@@ -83,8 +81,41 @@ recommended_advance = true_revenue_deposits * 0.10 (10% of true monthly revenue,
 
 Return ONLY the JSON. No markdown code blocks. No explanation.`
 
+export async function GET() {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  return NextResponse.json({
+    configured: !!apiKey,
+    preview: apiKey ? `${apiKey.slice(0, 10)}...` : null,
+    length: apiKey?.length ?? 0,
+    env: process.env.NODE_ENV,
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+
+    // Debug: log key info server-side
+    console.log('[analyze-statement] ANTHROPIC_API_KEY configured:', !!apiKey)
+    console.log('[analyze-statement] Key preview:', apiKey ? `${apiKey.slice(0, 10)}...` : 'NOT SET')
+    console.log('[analyze-statement] Key length:', apiKey?.length ?? 0)
+
+    if (!apiKey) {
+      return NextResponse.json({
+        error: 'ANTHROPIC_API_KEY is not set in server environment variables.',
+        debug: { configured: false, env: process.env.NODE_ENV },
+      }, { status: 500 })
+    }
+
+    if (!apiKey.startsWith('sk-ant-')) {
+      return NextResponse.json({
+        error: 'ANTHROPIC_API_KEY appears malformed (should start with sk-ant-).',
+        debug: { configured: true, preview: `${apiKey.slice(0, 10)}...`, length: apiKey.length },
+      }, { status: 500 })
+    }
+
+    const client = new Anthropic({ apiKey })
+
     const formData = await request.formData()
     const file = formData.get('pdf') as File
 
