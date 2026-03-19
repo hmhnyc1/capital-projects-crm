@@ -1,12 +1,32 @@
 import type { UploadedFile, ParsedBankStatement } from '@/types'
 
 export function generateLabel(file: UploadedFile): string {
-  if (file.type === 'application') return 'Application PDF'
-  if (file.type === 'bank_statement' && file.data && 'statement_month' in file.data) {
-    const data = file.data as ParsedBankStatement
-    const month = new Date(data.statement_year, data.statement_month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    return month
+  if (file.type === 'application') {
+    return 'Application'
   }
+
+  if (file.type === 'bank_statement') {
+    if (file.data && 'statement_month' in file.data) {
+      const data = file.data as ParsedBankStatement
+      try {
+        const month = new Date(data.statement_year, data.statement_month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        return month
+      } catch {
+        return 'Bank Statement'
+      }
+    }
+    return 'Bank Statement'
+  }
+
+  // For unknown type, try to infer from filename
+  const fileName = file.file.name.toLowerCase()
+  if (/january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/\d{1,2}|\d{4}-\d{2}|\d{1,2}-\d{4}/i.test(fileName)) {
+    return 'Bank Statement'
+  }
+  if (/app|application|form|merchant|underwriting/i.test(fileName)) {
+    return 'Application'
+  }
+
   return file.file.name
 }
 

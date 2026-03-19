@@ -29,49 +29,66 @@ export default function DealUploadForm() {
     })
 
     try {
-      // Try application parsing first
+      const fileName = file.name.toLowerCase()
+
+      // Filename heuristics to determine likely type
+      const hasMonthName = /january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/\d{1,2}|\d{4}-\d{2}/i.test(fileName)
+      const hasDatePattern = /\d{1,2}-\d{1,2}|\d{4}-\d{2}-\d{2}|202[0-9]/.test(fileName)
+      const hasAppKeyword = /app|application|form|merchant|underwriting/i.test(fileName)
+      const likelyBankStatement = hasMonthName || (hasDatePattern && !hasAppKeyword)
+      const likelyApplication = hasAppKeyword
+
+      // Determine which parser to try first
+      let appResult = null
+      let stmtResult = null
+
       const appFormData = new FormData()
       appFormData.append('pdf', file)
 
-      let response = await fetch('/api/parse-application', {
-        method: 'POST',
-        body: appFormData,
-      })
+      const stmtFormData = new FormData()
+      stmtFormData.append('pdf', file)
 
-      let isApplication = response.ok
-
-      if (isApplication) {
-        const result = await response.json()
-        const parsed = result.data
-
-        // Check if it looks like an application
-        if (parsed.business_legal_name || parsed.owner_name || parsed.ein) {
-          uploadedFile.type = 'application'
-          uploadedFile.data = parsed
-        } else {
-          isApplication = false
-        }
+      // Try parsers and collect results
+      const appResponse = await fetch('/api/parse-application', { method: 'POST', body: appFormData })
+      if (appResponse.ok) {
+        appResult = await appResponse.json()
       }
 
-      // If not application, try bank statement
-      if (!isApplication) {
-        const stmtFormData = new FormData()
-        stmtFormData.append('pdf', file)
+      const stmtResponse = await fetch('/api/parse-bank-statement', { method: 'POST', body: stmtFormData })
+      if (stmtResponse.ok) {
+        stmtResult = await stmtResponse.json()
+      }
 
-        response = await fetch('/api/parse-bank-statement', {
-          method: 'POST',
-          body: stmtFormData,
-        })
+      // Determine type based on what was actually extracted
+      const hasAppData = appResult?.data && (appResult.data.business_legal_name || appResult.data.owner_name || appResult.data.ein)
+      const hasStmtData = stmtResult?.data && (stmtResult.data.statement_month || stmtResult.data.total_deposits)
 
-        if (response.ok) {
-          const result = await response.json()
-          uploadedFile.type = 'bank_statement'
-          uploadedFile.data = result.data
-        }
+      if (hasAppData && !hasStmtData) {
+        uploadedFile.type = 'application'
+        uploadedFile.data = appResult.data
+      } else if (hasStmtData && !hasAppData) {
+        uploadedFile.type = 'bank_statement'
+        uploadedFile.data = stmtResult.data
+      } else if (hasAppData && hasStmtData) {
+        // Both have data, use filename hint
+        uploadedFile.type = likelyBankStatement ? 'bank_statement' : 'application'
+        uploadedFile.data = uploadedFile.type === 'application' ? appResult.data : stmtResult.data
+      } else if (likelyBankStatement) {
+        // Filename suggests bank statement
+        uploadedFile.type = 'bank_statement'
+        uploadedFile.data = stmtResult?.data || null
+      } else if (likelyApplication) {
+        // Filename suggests application
+        uploadedFile.type = 'application'
+        uploadedFile.data = appResult?.data || null
+      } else {
+        // Default to whichever had data, prefer bank statement if ambiguous
+        uploadedFile.type = hasStmtData ? 'bank_statement' : hasAppData ? 'application' : 'unknown'
+        uploadedFile.data = uploadedFile.type === 'application' ? appResult?.data : uploadedFile.type === 'bank_statement' ? stmtResult?.data : null
       }
 
       uploadedFile.parsing = false
-      uploadedFile.parsed = true
+      uploadedFile.parsed = uploadedFile.type !== 'unknown'
       uploadedFile.label = generateLabel(uploadedFile)
     } catch (err) {
       uploadedFile.parsing = false
