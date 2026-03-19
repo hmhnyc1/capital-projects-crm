@@ -2,13 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, LayoutDashboard, Users, Briefcase, Activity } from 'lucide-react'
+import { Building2, LayoutDashboard, Users, Briefcase, Activity, BarChart3, CreditCard, FileText, Store } from 'lucide-react'
 import clsx from 'clsx'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/portfolio', label: 'Portfolio', icon: BarChart3 },
+  { href: '/contacts', label: 'Merchants', icon: Store },
   { href: '/deals', label: 'Deals', icon: Briefcase },
+  { href: '/payments', label: 'Payments', icon: CreditCard },
+  { href: '/bank-statements', label: 'Bank Statements', icon: FileText },
   { href: '/activities', label: 'Activities', icon: Activity },
 ]
 
@@ -25,7 +28,7 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-tight">Capital Projects</p>
-            <p className="text-slate-400 text-xs">CRM Platform</p>
+            <p className="text-slate-400 text-xs">MCA Platform</p>
           </div>
         </div>
       </div>
@@ -54,7 +57,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-slate-800">
-        <p className="text-xs text-slate-500 text-center">v1.0.0</p>
+        <p className="text-xs text-slate-500 text-center">v2.0.0 · MCA Edition</p>
       </div>
     </aside>
   )

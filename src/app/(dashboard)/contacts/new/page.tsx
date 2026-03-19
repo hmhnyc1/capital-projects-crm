@@ -11,10 +11,10 @@ export default function NewContactPage() {
           className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Contacts
+          Back to Merchants
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">New Contact</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Add a new lead or contact to your CRM</p>
+        <h1 className="text-2xl font-bold text-slate-900">New Merchant</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Add a new merchant or contact to the platform</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -66,7 +66,7 @@ export default function NewContactPage() {
                 />
               </div>
               <div>
-                <label htmlFor="company" className="block text-sm font-medium text-slate-700 mb-1.5">Company</label>
+                <label htmlFor="company" className="block text-sm font-medium text-slate-700 mb-1.5">Business Name</label>
                 <input
                   id="company"
                   name="company"
@@ -122,7 +122,146 @@ export default function NewContactPage() {
                   id="source"
                   name="source"
                   type="text"
-                  placeholder="e.g. Referral, LinkedIn"
+                  placeholder="e.g. Referral, ISO"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-200" />
+
+          {/* Merchant / Business Info */}
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Merchant Profile</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="business_type" className="block text-sm font-medium text-slate-700 mb-1.5">Business Type</label>
+                <select
+                  id="business_type"
+                  name="business_type"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">-- Select --</option>
+                  <option value="LLC">LLC</option>
+                  <option value="Corporation">Corporation</option>
+                  <option value="S-Corp">S-Corp</option>
+                  <option value="Sole Proprietorship">Sole Proprietorship</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="Non-Profit">Non-Profit</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="industry" className="block text-sm font-medium text-slate-700 mb-1.5">Industry</label>
+                <input
+                  id="industry"
+                  name="industry"
+                  type="text"
+                  placeholder="e.g. Restaurant, Retail, Healthcare"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="years_in_business" className="block text-sm font-medium text-slate-700 mb-1.5">Years in Business</label>
+                <input
+                  id="years_in_business"
+                  name="years_in_business"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="monthly_revenue" className="block text-sm font-medium text-slate-700 mb-1.5">Monthly Revenue ($)</label>
+                <input
+                  id="monthly_revenue"
+                  name="monthly_revenue"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="credit_score" className="block text-sm font-medium text-slate-700 mb-1.5">Credit Score</label>
+                <input
+                  id="credit_score"
+                  name="credit_score"
+                  type="number"
+                  min="300"
+                  max="850"
+                  placeholder="650"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="ein" className="block text-sm font-medium text-slate-700 mb-1.5">EIN (Tax ID)</label>
+                <input
+                  id="ein"
+                  name="ein"
+                  type="text"
+                  placeholder="XX-XXXXXXX"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-200" />
+
+          {/* Owner Info */}
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Owner Information</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="owner_name" className="block text-sm font-medium text-slate-700 mb-1.5">Owner Name</label>
+                <input
+                  id="owner_name"
+                  name="owner_name"
+                  type="text"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="ownership_percentage" className="block text-sm font-medium text-slate-700 mb-1.5">Ownership %</label>
+                <input
+                  id="ownership_percentage"
+                  name="ownership_percentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="100"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="dob" className="block text-sm font-medium text-slate-700 mb-1.5">Date of Birth</label>
+                <input
+                  id="dob"
+                  name="dob"
+                  type="date"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="ssn_last4" className="block text-sm font-medium text-slate-700 mb-1.5">SSN Last 4</label>
+                <input
+                  id="ssn_last4"
+                  name="ssn_last4"
+                  type="text"
+                  maxLength={4}
+                  placeholder="XXXX"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="home_address" className="block text-sm font-medium text-slate-700 mb-1.5">Home Address</label>
+                <input
+                  id="home_address"
+                  name="home_address"
+                  type="text"
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -133,7 +272,7 @@ export default function NewContactPage() {
 
           {/* Address */}
           <div>
-            <h2 className="text-base font-semibold text-slate-900 mb-4">Address</h2>
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Business Address</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label htmlFor="address" className="block text-sm font-medium text-slate-700 mb-1.5">Street Address</label>
@@ -186,7 +325,7 @@ export default function NewContactPage() {
               name="notes"
               rows={4}
               className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="Add any notes about this contact..."
+              placeholder="Underwriting notes, observations..."
             />
           </div>
 
@@ -195,7 +334,7 @@ export default function NewContactPage() {
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-6 py-2.5 rounded-lg transition"
             >
-              Create Contact
+              Create Merchant
             </button>
             <Link
               href="/contacts"

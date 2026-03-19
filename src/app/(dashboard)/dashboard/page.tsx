@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import StatCard from '@/components/StatCard'
 import ActivityItem from '@/components/ActivityItem'
-import { Users, Briefcase, DollarSign, TrendingUp } from 'lucide-react'
+import { Users, Briefcase, DollarSign, TrendingUp, BarChart3, CreditCard } from 'lucide-react'
 import { DealStage, Activity } from '@/types'
+import Link from 'next/link'
 
 const STAGES: DealStage[] = ['Prospecting', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 
@@ -18,11 +19,15 @@ const stageColors: Record<DealStage, string> = {
 export default async function DashboardPage() {
   const supabase = createClient()
 
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+
   const [
     { count: contactCount },
     { count: dealCount },
     { data: deals },
     { data: recentActivities },
+    { data: activeDeals },
+    { data: monthlyPayments },
   ] = await Promise.all([
     supabase.from('contacts').select('*', { count: 'exact', head: true }),
     supabase.from('deals').select('*', { count: 'exact', head: true }),
@@ -32,6 +37,16 @@ export default async function DashboardPage() {
       .select('*, contacts(first_name, last_name, company)')
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase
+      .from('deals')
+      .select('remaining_balance, factor_rate, mca_status, advance_amount')
+      .eq('mca_status', 'active')
+      .not('advance_amount', 'is', null),
+    supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'completed')
+      .gte('payment_date', startOfMonth),
   ])
 
   // Calculate pipeline value (exclude closed lost)
@@ -54,17 +69,25 @@ export default async function DashboardPage() {
   }))
   const maxCount = Math.max(...dealsByStage.map(s => s.count), 1)
 
+  // MCA metrics
+  const totalPortfolioBalance = (activeDeals ?? []).reduce((sum, d) => sum + (Number(d.remaining_balance) || 0), 0)
+  const activeMCACount = activeDeals?.length ?? 0
+  const collectionsThisMonth = (monthlyPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
+  const avgFactorRate = activeMCACount > 0
+    ? (activeDeals ?? []).reduce((sum, d) => sum + (Number(d.factor_rate) || 0), 0) / activeMCACount
+    : 0
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Your pipeline overview at a glance</p>
+        <p className="text-slate-500 text-sm mt-0.5">Your CRM and MCA portfolio at a glance</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* CRM Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          title="Total Contacts"
+          title="Total Merchants"
           value={contactCount ?? 0}
           icon={Users}
           color="blue"
@@ -91,6 +114,42 @@ export default async function DashboardPage() {
           color="orange"
           subtitle={`${closedDeals.filter(d => d.stage === 'Closed Won').length} of ${closedDeals.length} closed`}
         />
+      </div>
+
+      {/* MCA Portfolio Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart3 className="w-4 h-4 opacity-80" />
+            <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Portfolio Balance</span>
+          </div>
+          <p className="text-2xl font-bold">${totalPortfolioBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <Link href="/portfolio" className="text-xs opacity-70 hover:opacity-100 mt-1 block">View portfolio →</Link>
+        </div>
+        <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <Briefcase className="w-4 h-4 opacity-80" />
+            <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Active MCAs</span>
+          </div>
+          <p className="text-2xl font-bold">{activeMCACount}</p>
+          <p className="text-xs opacity-70 mt-1">Active advances</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <CreditCard className="w-4 h-4 opacity-80" />
+            <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Collections MTD</span>
+          </div>
+          <p className="text-2xl font-bold">${collectionsThisMonth.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <Link href="/payments" className="text-xs opacity-70 hover:opacity-100 mt-1 block">View payments →</Link>
+        </div>
+        <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 opacity-80" />
+            <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Avg Factor Rate</span>
+          </div>
+          <p className="text-2xl font-bold">{avgFactorRate > 0 ? avgFactorRate.toFixed(2) : '—'}</p>
+          <p className="text-xs opacity-70 mt-1">Across active deals</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
