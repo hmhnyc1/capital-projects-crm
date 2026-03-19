@@ -50,45 +50,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify or create the deal-documents bucket
-    const BUCKET_NAME = 'deal-documents'
-    try {
-      console.log(`[upload-deal-files] Checking if bucket "${BUCKET_NAME}" exists...`)
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-
-      if (listError) {
-        console.error('[upload-deal-files] Error listing buckets:', listError.message)
-        // Continue anyway - might still work
-      } else {
-        const bucketExists = buckets?.some(b => b.name === BUCKET_NAME)
-
-        if (!bucketExists) {
-          console.log(`[upload-deal-files] Bucket "${BUCKET_NAME}" not found, creating...`)
-          const { error: createError } = await supabase.storage.createBucket(BUCKET_NAME, {
-            public: false,
-          })
-
-          if (createError) {
-            console.error(`[upload-deal-files] Error creating bucket: ${createError.message}`)
-            // Only fail if it's a real error, not "bucket already exists"
-            if (!createError.message.includes('already exists')) {
-              return NextResponse.json(
-                { error: `Failed to create storage bucket: ${createError.message}` },
-                { status: 500 }
-              )
-            }
-          } else {
-            console.log(`[upload-deal-files] Bucket "${BUCKET_NAME}" created successfully`)
-          }
-        } else {
-          console.log(`[upload-deal-files] Bucket "${BUCKET_NAME}" exists`)
-        }
-      }
-    } catch (err) {
-      const bucketError = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[upload-deal-files] Error checking/creating bucket:', bucketError)
-      // Continue anyway - maybe the bucket already exists
-    }
+    // Use existing documents bucket
+    const BUCKET_NAME = 'documents'
+    console.log(`[upload-deal-files] Using bucket: "${BUCKET_NAME}"`)
 
     let formData
     try {
@@ -132,17 +96,6 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error(`[upload-deal-files] Upload failed for ${file.name}:`, error)
-          // Check if it's a bucket not found error and provide helpful message
-          const errorMessage = error.message || JSON.stringify(error)
-          if (errorMessage.includes('bucket') || errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-            return NextResponse.json(
-              {
-                error: `Storage bucket "${BUCKET_NAME}" not found or inaccessible. Please ensure the bucket exists in Supabase Storage.`,
-                details: errorMessage
-              },
-              { status: 503 }
-            )
-          }
           return NextResponse.json({ error: `Failed to upload ${file.name}: ${error.message}` }, { status: 500 })
         }
 
