@@ -85,9 +85,14 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
 export async function createContact(
   application: ParsedApplication
 ) {
+  console.log('[createContact] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[createContact] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[createContact] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
   const merchantData = {
     user_id: user.id,
@@ -116,13 +121,24 @@ export async function createContact(
     status: 'qualified' as const,
   }
 
+  console.log('[createContact] 📝 Inserting merchant:', {
+    company: merchantData.company,
+    owner: merchantData.first_name + ' ' + merchantData.last_name,
+    ein: merchantData.ein,
+  })
+
   const { data: merchant, error: merchantError } = await supabase
     .from('contacts')
     .insert(merchantData)
     .select()
     .single()
 
-  if (merchantError) throw new Error(`Failed to create contact: ${merchantError.message}`)
+  console.log('[createContact] Response:', { merchantError, merchantId: merchant?.id })
+  if (merchantError) {
+    console.error('[createContact] ❌ Error creating contact:', merchantError.message)
+    throw new Error(`Failed to create contact: ${merchantError.message}`)
+  }
+  console.log('[createContact] ✅ Contact created:', merchant.id)
   return merchant
 }
 
@@ -134,11 +150,22 @@ export async function createDeal(
   position: 'approved' | 'declined' | 'counter' | 'review',
   customTerms?: { advanceAmount: number; factorRate: number; termDays: number }
 ) {
+  console.log('[createDeal] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[createDeal] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[createDeal] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
+  console.log('[createDeal] 📊 Calculating risk metrics...')
   const riskMetrics = calculateRiskMetrics(application, statements)
+  console.log('[createDeal] 📊 Risk metrics calculated:', {
+    score: riskMetrics.score,
+    grade: riskMetrics.riskGrade,
+    flags: riskMetrics.flags.length,
+  })
 
   const avgMonthlyRevenue = statements.length > 0
     ? statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length
@@ -202,13 +229,25 @@ export async function createDeal(
     origination_date: new Date().toISOString().split('T')[0],
   }
 
+  console.log('[createDeal] 📝 Inserting deal:', {
+    title: dealData.title,
+    dealNumber: dealData.deal_number,
+    contactId: dealData.contact_id,
+    status: dealData.status,
+  })
+
   const { data: deal, error: dealError } = await supabase
     .from('deals')
     .insert(dealData)
     .select()
     .single()
 
-  if (dealError) throw new Error(`Failed to create deal: ${dealError.message}`)
+  console.log('[createDeal] Response:', { dealError, dealId: deal?.id })
+  if (dealError) {
+    console.error('[createDeal] ❌ Error creating deal:', dealError.message)
+    throw new Error(`Failed to create deal: ${dealError.message}`)
+  }
+  console.log('[createDeal] ✅ Deal created:', deal.id)
   return { deal, riskMetrics }
 }
 
@@ -218,11 +257,25 @@ export async function saveBankStatements(
   dealId: string,
   merchantId: string
 ) {
+  console.log('[saveBankStatements] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[saveBankStatements] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[saveBankStatements] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
-  for (const statement of statements) {
+  console.log('[saveBankStatements] 📝 Saving', statements.length, 'statements...')
+
+  for (let i = 0; i < statements.length; i++) {
+    const statement = statements[i]
+    console.log(`[saveBankStatements] 📊 Statement ${i + 1}/${statements.length}:`, {
+      month: statement.statement_month,
+      year: statement.statement_year,
+      revenue: statement.true_revenue_deposits,
+    })
+
     const { error: stmtError } = await supabase
       .from('bank_statements_detailed')
       .insert({
@@ -252,8 +305,13 @@ export async function saveBankStatements(
         model_used: 'claude-haiku-4-5-20251001',
       })
 
-    if (stmtError) console.error('Failed to save bank statement:', stmtError.message)
+    if (stmtError) {
+      console.error(`[saveBankStatements] ❌ Failed to save statement ${i + 1}:`, stmtError.message)
+    } else {
+      console.log(`[saveBankStatements] ✅ Statement ${i + 1} saved`)
+    }
   }
+  console.log('[saveBankStatements] ✅ All bank statements saved')
 }
 
 // Stage 4: Save MCA positions
@@ -262,9 +320,14 @@ export async function saveMCAPositions(
   dealId: string,
   merchantId: string
 ) {
+  console.log('[saveMCAPositions] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[saveMCAPositions] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[saveMCAPositions] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
   const lenderMap: Record<string, { first: string; last: string; daily: number }> = {}
   statements.forEach((s) => {
@@ -278,7 +341,10 @@ export async function saveMCAPositions(
     })
   })
 
+  console.log('[saveMCAPositions] 📊 Found', Object.keys(lenderMap).length, 'unique lenders')
+
   for (const [funderName, info] of Object.entries(lenderMap)) {
+    console.log(`[saveMCAPositions] 📝 Saving MCA position: ${funderName} (daily: $${info.daily})`)
     const { error: mcaError } = await supabase
       .from('mca_positions_detailed')
       .insert({
@@ -294,8 +360,13 @@ export async function saveMCAPositions(
         status: 'active',
       })
 
-    if (mcaError) console.error('Failed to save MCA position:', mcaError.message)
+    if (mcaError) {
+      console.error(`[saveMCAPositions] ❌ Failed to save MCA position ${funderName}:`, mcaError.message)
+    } else {
+      console.log(`[saveMCAPositions] ✅ MCA position ${funderName} saved`)
+    }
   }
+  console.log('[saveMCAPositions] ✅ All MCA positions saved')
 }
 
 // Stage 5: Save risk assessment (scorecard and flags)
@@ -307,9 +378,14 @@ export async function saveRiskAssessment(
   position: 'approved' | 'declined' | 'counter' | 'review',
   customTerms?: { advanceAmount: number; factorRate: number; termDays: number }
 ) {
+  console.log('[saveRiskAssessment] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[saveRiskAssessment] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[saveRiskAssessment] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
   const avgMonthlyRevenue = statements.length > 0
     ? statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length
@@ -342,6 +418,7 @@ export async function saveRiskAssessment(
   const timeInBusinessScore = Math.min(100, (application.time_in_business_years || 0) * 25)
 
   // Save scorecard
+  console.log('[saveRiskAssessment] 📝 Saving scorecard...')
   const { error: scorecardError } = await supabase
     .from('underwriting_scorecards_detailed')
     .insert({
@@ -372,10 +449,17 @@ export async function saveRiskAssessment(
       recommended_position: position.toUpperCase(),
     })
 
-  if (scorecardError) console.error('Failed to save scorecard:', scorecardError.message)
+  if (scorecardError) {
+    console.error('[saveRiskAssessment] ❌ Failed to save scorecard:', scorecardError.message)
+  } else {
+    console.log('[saveRiskAssessment] ✅ Scorecard saved')
+  }
 
   // Save risk flags
-  for (const flag of riskMetrics.flags) {
+  console.log('[saveRiskAssessment] 📝 Saving', riskMetrics.flags.length, 'risk flags...')
+  for (let i = 0; i < riskMetrics.flags.length; i++) {
+    const flag = riskMetrics.flags[i]
+    console.log(`[saveRiskAssessment] 🚩 Flag ${i + 1}/${riskMetrics.flags.length}: ${flag.message} (${flag.severity})`)
     const { error: flagError } = await supabase
       .from('risk_flags_detailed')
       .insert({
@@ -387,8 +471,13 @@ export async function saveRiskAssessment(
         value_that_triggered_it: flag.value,
       })
 
-    if (flagError) console.error('Failed to save risk flag:', flagError.message)
+    if (flagError) {
+      console.error(`[saveRiskAssessment] ❌ Failed to save flag ${i + 1}:`, flagError.message)
+    } else {
+      console.log(`[saveRiskAssessment] ✅ Flag ${i + 1} saved`)
+    }
   }
+  console.log('[saveRiskAssessment] ✅ Risk assessment complete')
 }
 
 // Stage 6: Save documents and activity
@@ -400,15 +489,27 @@ export async function saveDocumentsAndActivity(
   riskMetrics: ReturnType<typeof calculateRiskMetrics>,
   uploadedFiles?: Array<{ name: string; size: number }>
 ) {
+  console.log('[saveDocumentsAndActivity] 🔍 Starting...')
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  console.log('[saveDocumentsAndActivity] 👤 Auth user:', user?.id)
+  if (!user) {
+    console.error('[saveDocumentsAndActivity] ❌ No authenticated user found')
+    redirect('/login')
+  }
 
   // Save documents
+  console.log('[saveDocumentsAndActivity] 📝 Saving', filePaths.length, 'documents...')
   for (let idx = 0; idx < filePaths.length; idx++) {
     const path = filePaths[idx]
     const isApplication = idx === 0
     const fileInfo = uploadedFiles?.[idx]
+
+    console.log(`[saveDocumentsAndActivity] 📄 Document ${idx + 1}/${filePaths.length}:`, {
+      name: fileInfo?.name,
+      type: isApplication ? 'application' : 'bank_statement',
+      path: path,
+    })
 
     const { error: docError } = await supabase
       .from('documents_detailed')
@@ -424,10 +525,15 @@ export async function saveDocumentsAndActivity(
         uploaded_at: new Date().toISOString(),
       })
 
-    if (docError) console.error('Failed to save document:', docError.message)
+    if (docError) {
+      console.error(`[saveDocumentsAndActivity] ❌ Failed to save document ${idx + 1}:`, docError.message)
+    } else {
+      console.log(`[saveDocumentsAndActivity] ✅ Document ${idx + 1} saved`)
+    }
   }
 
   // Log activity
+  console.log('[saveDocumentsAndActivity] 📝 Logging deal activity...')
   const { error: activityError } = await supabase
     .from('deal_activities')
     .insert({
@@ -440,10 +546,16 @@ export async function saveDocumentsAndActivity(
       created_by_user_id: user.id,
     })
 
-  if (activityError) console.error('Failed to log activity:', activityError.message)
+  if (activityError) {
+    console.error('[saveDocumentsAndActivity] ❌ Failed to log activity:', activityError.message)
+  } else {
+    console.log('[saveDocumentsAndActivity] ✅ Activity logged')
+  }
 
+  console.log('[saveDocumentsAndActivity] 🔄 Revalidating paths...')
   revalidatePath('/deals')
   revalidatePath(`/deals/${dealId}`)
+  console.log('[saveDocumentsAndActivity] ✅ Paths revalidated')
 }
 
 // NEW: Refactored to accept just job ID - payload is tiny!
@@ -456,56 +568,88 @@ export async function createDealComprehensive(
   uploadedFiles?: Array<{ name: string; size: number }>
 ) {
   try {
-    console.log('[createDealComprehensive] 🚀 Starting deal creation with job ID:', jobId)
+    console.log('═══════════════════════════════════════════════════════════════════')
+    console.log('[createDealComprehensive] 🚀 STARTING DEAL CREATION')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] Input params:', {
+      jobId,
+      dealId,
+      position,
+      filePaths: filePaths.length,
+      uploadedFiles: uploadedFiles?.length,
+    })
 
     // Fetch parsed data from Supabase (ONLY request - no payload data sent!)
+    console.log('[createDealComprehensive] 📦 Fetching parsed data from Supabase...')
     const { getParsingJobData } = await import('./save-parsed-data')
     const jobData = await getParsingJobData(jobId)
 
     const application = jobData.application as ParsedApplication
     const statements = jobData.statements as ParsedBankStatement[]
 
-    console.log('[createDealComprehensive] ✅ Fetched parsed data: app + ' + statements.length + ' statements')
+    console.log('[createDealComprehensive] ✅ Fetched parsed data:', {
+      merchantName: application?.business_legal_name,
+      ein: application?.ein,
+      statementCount: statements.length,
+    })
 
     // Stage 1: Create contact
-    console.log('[createDealComprehensive] Stage 1: Creating contact...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 1: Creating contact...')
     const merchant = await createContact(application)
-    console.log('[createDealComprehensive] Contact created:', merchant.id)
+    console.log('[createDealComprehensive] ✅ Stage 1 complete - Contact ID:', merchant.id)
 
     // Stage 2: Create deal
-    console.log('[createDealComprehensive] Stage 2: Creating deal...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 2: Creating deal...')
     const { deal, riskMetrics } = await createDeal(application, statements, merchant.id, position, customTerms)
-    console.log('[createDealComprehensive] Deal created:', deal.id)
+    console.log('[createDealComprehensive] ✅ Stage 2 complete - Deal ID:', deal.id)
 
     // Stage 3: Save bank statements
-    console.log('[createDealComprehensive] Stage 3: Saving bank statements...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 3: Saving bank statements...')
     await saveBankStatements(statements, deal.id, merchant.id)
-    console.log('[createDealComprehensive] Bank statements saved')
+    console.log('[createDealComprehensive] ✅ Stage 3 complete')
 
     // Stage 4: Save MCA positions
-    console.log('[createDealComprehensive] Stage 4: Saving MCA positions...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 4: Saving MCA positions...')
     await saveMCAPositions(statements, deal.id, merchant.id)
-    console.log('[createDealComprehensive] MCA positions saved')
+    console.log('[createDealComprehensive] ✅ Stage 4 complete')
 
     // Stage 5: Save risk assessment
-    console.log('[createDealComprehensive] Stage 5: Saving risk assessment...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 5: Saving risk assessment...')
     await saveRiskAssessment(application, statements, riskMetrics, deal.id, position, customTerms)
-    console.log('[createDealComprehensive] Risk assessment saved')
+    console.log('[createDealComprehensive] ✅ Stage 5 complete')
 
     // Stage 6: Save documents and activity
-    console.log('[createDealComprehensive] Stage 6: Saving documents and activity...')
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 📋 STAGE 6: Saving documents and activity...')
     await saveDocumentsAndActivity(filePaths, deal.id, merchant.id, position, riskMetrics, uploadedFiles)
-    console.log('[createDealComprehensive] Documents and activity saved')
+    console.log('[createDealComprehensive] ✅ Stage 6 complete')
 
     // Cleanup temp data
+    console.log('───────────────────────────────────────────────────────────────────')
+    console.log('[createDealComprehensive] 🗑️ Cleaning up temporary parsing data...')
     const { cleanupParsingJob } = await import('./save-parsed-data')
     await cleanupParsingJob(jobId)
-    console.log('[createDealComprehensive] 🗑️ Cleaned up temp parsing data')
+    console.log('[createDealComprehensive] ✅ Cleanup complete')
 
-    console.log('[createDealComprehensive] ✅ All stages complete, redirecting...')
+    console.log('═══════════════════════════════════════════════════════════════════')
+    console.log('[createDealComprehensive] ✅✅✅ ALL STAGES COMPLETE ✅✅✅')
+    console.log('[createDealComprehensive] 🎉 Deal created successfully!')
+    console.log('[createDealComprehensive] Deal ID:', deal.id)
+    console.log('[createDealComprehensive] Redirecting to deal detail page...')
+    console.log('═══════════════════════════════════════════════════════════════════')
     redirect(`/deals/${deal.id}`)
   } catch (error) {
-    console.error('Error in createDealComprehensive:', error)
+    console.error('═══════════════════════════════════════════════════════════════════')
+    console.error('[createDealComprehensive] ❌❌❌ ERROR ❌❌❌')
+    console.error('[createDealComprehensive] Error type:', error?.constructor?.name)
+    console.error('[createDealComprehensive] Error message:', error instanceof Error ? error.message : String(error))
+    console.error('[createDealComprehensive] Full error:', error)
+    console.error('═══════════════════════════════════════════════════════════════════')
     throw error
   }
 }
