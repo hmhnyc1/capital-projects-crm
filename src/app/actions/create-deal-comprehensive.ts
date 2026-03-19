@@ -584,8 +584,8 @@ export async function createDealComprehensive(
     const { getParsingJobData } = await import('./save-parsed-data')
     const jobData = await getParsingJobData(jobId)
 
-    const application = jobData.application as ParsedApplication
-    const statements = jobData.statements as ParsedBankStatement[]
+    const application = jobData.application
+    const statements = jobData.statements
 
     console.log('[createDealComprehensive] ✅ Fetched parsed data:', {
       merchantName: application?.business_legal_name,
