@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, AlertCircle } from 'lucide-react'
 import ReviewScreenNew from '@/app/(dashboard)/upload-deal/ReviewScreenNew'
+import FileControlSheetDisplay from '@/app/(dashboard)/upload-deal/FileControlSheetDisplay'
+import { generateFileControlSheet, type FileControlSheet } from '@/lib/file-control-sheet'
 import type { UploadedFile, ParsedApplication, ParsedBankStatement } from '@/types'
 
 interface DealData {
@@ -93,6 +95,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [deal, setDeal] = useState<DealData | null>(null)
   const [merchant, setMerchant] = useState<MerchantData | null>(null)
   const [activities, setActivities] = useState<ActivityData[]>([])
+  const [fileControlSheet, setFileControlSheet] = useState<FileControlSheet | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -151,6 +154,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           .order('created_at', { ascending: false })
 
         setActivities(activitiesData || [])
+
+        // Extract application and statements for FileControlSheet generation
+        let appData: ParsedApplication | null = null
+        let stmtDataList: ParsedBankStatement[] = []
 
         // Reconstruct files array for ReviewScreenNew
         const reconstructedFiles: UploadedFile[] = []
@@ -224,6 +231,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             label: appDoc.file_name,
             data: application,
           })
+          appData = application
         }
 
         // Add bank statements
@@ -307,10 +315,21 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               label: stmtDoc?.file_name || `${stmt.statement_month}/${stmt.statement_year}`,
               data: statement,
             })
+            stmtDataList.push(statement)
           })
         }
 
         setFiles(reconstructedFiles)
+
+        // Generate FileControlSheet
+        try {
+          if (dealData) {
+            const sheet = generateFileControlSheet(appData, stmtDataList, 'System', dealData.deal_number)
+            setFileControlSheet(sheet)
+          }
+        } catch (sheetErr) {
+          console.error('Error generating FileControlSheet:', sheetErr)
+        }
         setLoading(false)
       } catch (err) {
         console.error('Error loading deal data:', err)
@@ -395,6 +414,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         <div className="bg-slate-950 py-6">
           <ReviewScreenNew files={files} readOnly={true} />
         </div>
+      )}
+
+      {/* File Control Sheet */}
+      {fileControlSheet && (
+        <FileControlSheetDisplay sheet={fileControlSheet} />
       )}
 
       {/* Activity Timeline */}

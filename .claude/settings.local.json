@@ -9,7 +9,8 @@
       "Bash(grep -n \"statement_period_text\\\\|statement_month:\" /c/Users/hmhny/my-crm/src/app/\\\\\\(dashboard\\\\\\)/deals/[id]/page.tsx)",
       "Bash(node -c /c/Users/hmhny/my-crm/src/app/actions/create-deal-comprehensive.ts)",
       "Bash(git checkout:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git push:*)"
     ]
   }
 }
