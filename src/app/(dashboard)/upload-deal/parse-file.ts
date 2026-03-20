@@ -15,6 +15,24 @@ export interface ParseFileResult {
 }
 
 /**
+ * Converts any object to a plain serializable object by doing a deep JSON round-trip
+ * This removes any Date objects, class instances, or circular references
+ */
+function makeSerializable(obj: any): any {
+  try {
+    if (obj === null || obj === undefined) {
+      return obj
+    }
+    // Deep serialize and deserialize to ensure all objects are plain
+    return JSON.parse(JSON.stringify(obj))
+  } catch (err) {
+    console.error('[parse-file] Failed to serialize object:', err)
+    console.error('[parse-file] Object:', obj)
+    throw new Error(`Serialization failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+/**
  * Parse a file using the new parsing libraries
  * Handles PDF extraction and determines file type
  */
@@ -198,26 +216,43 @@ export async function parseFile(
     console.log(`[parse-file] Type: ${detectedType}`)
     console.log(`[parse-file] Data present: ${!!detectedData}`)
     console.log(`[parse-file] Label: ${detectedLabel}`)
-    console.log(`[parse-file] ========================================`)
+    console.log(`[parse-file] Serializing result for client...`)
 
-    return {
+    const result = {
       type: detectedType,
       data: detectedData,
       error: null,
       label: detectedLabel,
     }
+
+    // Ensure result is fully serializable
+    console.log(`[parse-file] Applying JSON serialization...`)
+    const serialized = makeSerializable(result)
+    console.log(`[parse-file] ✓ Serialization successful`)
+    console.log(`[parse-file] ========================================`)
+
+    return serialized
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     console.error(`[parse-file] ========================================`)
     console.error(`[parse-file] ✗ PARSING FAILED - ERROR`)
     console.error(`[parse-file] Error message: ${errorMsg}`)
     console.error(`[parse-file] Full error object:`, err)
-    console.error(`[parse-file] ========================================`)
-    return {
-      type: 'unknown',
+    console.error(`[parse-file] Serializing error result...`)
+
+    const result = {
+      type: 'unknown' as const,
       data: null,
       error: errorMsg,
       label: fileName,
     }
+
+    // Ensure result is fully serializable even in error case
+    console.error(`[parse-file] Applying JSON serialization to error...`)
+    const serialized = makeSerializable(result)
+    console.error(`[parse-file] ✓ Error result serialized`)
+    console.error(`[parse-file] ========================================`)
+
+    return serialized
   }
 }

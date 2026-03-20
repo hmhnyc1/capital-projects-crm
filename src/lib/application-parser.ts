@@ -342,7 +342,9 @@ export async function parseApplication(
     }
 
     console.log(`[application-parser] Parse complete. Confidence: ${result.confidence_score}%`)
-    return result
+    // Serialize to ensure plain object for server action
+    const serialized = JSON.parse(JSON.stringify(result))
+    return serialized
   } catch (error) {
     console.error('[application-parser] Fatal error:', error)
     throw error

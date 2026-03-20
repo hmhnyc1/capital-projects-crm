@@ -206,13 +206,14 @@ export function extractStatementPeriod(pdfText: string): DateExtractionResult {
   // Input validation
   if (!pdfText || typeof pdfText !== 'string' || pdfText.trim().length === 0) {
     console.warn('[date-extraction] No PDF text provided')
-    return {
+    const result = {
       startDate: null,
       endDate: null,
       monthLabel: null,
       confidence: 0,
       matchedPattern: null,
     }
+    return JSON.parse(JSON.stringify(result))
   }
 
   try {
@@ -546,21 +547,23 @@ export function extractStatementPeriod(pdfText: string): DateExtractionResult {
 
     // No valid date pattern found
     console.warn('[date-extraction] No valid date pattern matched in statement text')
-    return {
+    const result = {
       startDate: null,
       endDate: null,
       monthLabel: null,
       confidence: 0,
       matchedPattern: null,
     }
+    return JSON.parse(JSON.stringify(result))
   } catch (error) {
     console.error('[date-extraction] Fatal error during extraction:', error)
-    return {
+    const errorResult = {
       startDate: null,
       endDate: null,
       monthLabel: null,
       confidence: 0,
       matchedPattern: null,
     }
+    return JSON.parse(JSON.stringify(errorResult))
   }
 }

@@ -446,7 +446,17 @@ export async function parseBankStatement(
     }
 
     console.log(`[bank-statement-parser] Parse complete. Bank: ${result.bank_name}, Confidence: ${result.confidence_score}%`)
-    return result
+
+    // Ensure result is fully serializable for server actions
+    console.log(`[bank-statement-parser] Serializing result...`)
+    try {
+      const serialized = JSON.parse(JSON.stringify(result))
+      console.log(`[bank-statement-parser] ✓ Serialization successful`)
+      return serialized as ParsedBankStatement
+    } catch (serializationError) {
+      console.error(`[bank-statement-parser] Serialization failed:`, serializationError)
+      throw new Error(`Result serialization failed: ${serializationError instanceof Error ? serializationError.message : String(serializationError)}`)
+    }
   } catch (error) {
     console.error('[bank-statement-parser] Fatal error:', error)
     throw error

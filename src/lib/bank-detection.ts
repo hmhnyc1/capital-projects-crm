@@ -571,10 +571,11 @@ export function detectBank(pdfText: string): BankDetectionResult {
   // Input validation
   if (!pdfText || typeof pdfText !== 'string' || pdfText.trim().length === 0) {
     console.warn('[bank-detection] No PDF text provided for bank detection')
-    return {
+    const result = {
       bankName: 'Unknown Bank',
       confidence: 0,
     }
+    return JSON.parse(JSON.stringify(result))
   }
 
   // Extract first 3000 characters for analysis (enough to get bank identifiers)
@@ -656,21 +657,24 @@ export function detectBank(pdfText: string): BankDetectionResult {
   } catch (error) {
     console.error('[bank-detection] Error during bank detection:', error)
     // Return unknown bank on error
-    return {
+    const result = {
       bankName: 'Unknown Bank',
       confidence: 0,
     }
+    return JSON.parse(JSON.stringify(result))
   }
 
   // Flag low-confidence detections
   if (highestConfidence < 70) {
     console.warn(`[bank-detection] Low confidence detection: ${detectedBank.bankName} (${highestConfidence}%) - flagging for manual review`)
-    return {
+    const result = {
       bankName: 'Unknown Bank',
       confidence: 0,
     }
+    return JSON.parse(JSON.stringify(result))
   }
 
   console.log(`[bank-detection] Detected: ${detectedBank.bankName} with ${highestConfidence}% confidence`)
-  return detectedBank
+  // Serialize to remove RegExp objects from profile before returning
+  return JSON.parse(JSON.stringify(detectedBank))
 }
