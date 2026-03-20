@@ -268,6 +268,11 @@ export async function saveBankStatements(
 
   console.log('[saveBankStatements] 📝 Saving', statements.length, 'statements...')
 
+  if (!statements || statements.length === 0) {
+    console.warn('[saveBankStatements] ⚠️  No statements to save')
+    return
+  }
+
   for (let i = 0; i < statements.length; i++) {
     const statement = statements[i]
     console.log(`[saveBankStatements] 📊 Statement ${i + 1}/${statements.length}:`, {
@@ -307,6 +312,7 @@ export async function saveBankStatements(
 
     if (stmtError) {
       console.error(`[saveBankStatements] ❌ Failed to save statement ${i + 1}:`, stmtError.message)
+      throw new Error(`Failed to save bank statement ${i + 1}: ${stmtError.message}`)
     } else {
       console.log(`[saveBankStatements] ✅ Statement ${i + 1} saved`)
     }
@@ -362,6 +368,7 @@ export async function saveMCAPositions(
 
     if (mcaError) {
       console.error(`[saveMCAPositions] ❌ Failed to save MCA position ${funderName}:`, mcaError.message)
+      throw new Error(`Failed to save MCA position ${funderName}: ${mcaError.message}`)
     } else {
       console.log(`[saveMCAPositions] ✅ MCA position ${funderName} saved`)
     }
@@ -451,6 +458,7 @@ export async function saveRiskAssessment(
 
   if (scorecardError) {
     console.error('[saveRiskAssessment] ❌ Failed to save scorecard:', scorecardError.message)
+    throw new Error(`Failed to save scorecard: ${scorecardError.message}`)
   } else {
     console.log('[saveRiskAssessment] ✅ Scorecard saved')
   }
@@ -473,6 +481,7 @@ export async function saveRiskAssessment(
 
     if (flagError) {
       console.error(`[saveRiskAssessment] ❌ Failed to save flag ${i + 1}:`, flagError.message)
+      throw new Error(`Failed to save risk flag ${i + 1}: ${flagError.message}`)
     } else {
       console.log(`[saveRiskAssessment] ✅ Flag ${i + 1} saved`)
     }
@@ -527,6 +536,7 @@ export async function saveDocumentsAndActivity(
 
     if (docError) {
       console.error(`[saveDocumentsAndActivity] ❌ Failed to save document ${idx + 1}:`, docError.message)
+      throw new Error(`Failed to save document ${idx + 1}: ${docError.message}`)
     } else {
       console.log(`[saveDocumentsAndActivity] ✅ Document ${idx + 1} saved`)
     }
