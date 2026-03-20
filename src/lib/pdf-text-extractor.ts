@@ -1,61 +1,45 @@
 /**
  * PDF TEXT EXTRACTOR
  *
- * Utility to extract text from PDF files using Claude's vision capabilities.
- * Accepts Buffer instead of File object because File objects cannot be passed to Server Actions
+ * Utility to extract text from PDF files using pdfjs-dist library.
+ * Extracts raw text directly from PDFs without using Claude Vision API.
+ * More reliable and cheaper than Vision API approach.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import * as pdfjsLib from 'pdfjs-dist'
+
+// Configure the worker for Node.js environment
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 export async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
   console.log(`[pdf-text-extractor] ========================================`)
-  console.log(`[pdf-text-extractor] Starting PDF extraction`)
+  console.log(`[pdf-text-extractor] Starting PDF text extraction using pdfjs-dist`)
   console.log(`[pdf-text-extractor] File size: ${fileBuffer.byteLength} bytes`)
 
   try {
-    console.log(`[pdf-text-extractor] Converting Buffer to base64...`)
-    const base64 = fileBuffer.toString('base64')
-    console.log(`[pdf-text-extractor] ✓ Base64 conversion complete (${base64.length} chars)`)
+    console.log(`[pdf-text-extractor] Loading PDF document...`)
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBuffer) }).promise
 
-    // Use Claude to extract text
-    console.log(`[pdf-text-extractor] Initializing Anthropic client...`)
-    const client = new Anthropic()
-    console.log(`[pdf-text-extractor] ✓ Client initialized`)
+    console.log(`[pdf-text-extractor] ✓ PDF loaded successfully`)
+    console.log(`[pdf-text-extractor] Number of pages: ${pdf.numPages}`)
 
-    console.log(`[pdf-text-extractor] Calling Claude Sonnet 4.6 for PDF extraction...`)
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64,
-              },
-            },
-            {
-              type: 'text',
-              text: 'Extract ALL text content from this PDF document. Preserve the layout, formatting, and structure. Return ONLY the extracted text, no other commentary or explanation.',
-            },
-          ],
-        },
-      ],
-    })
+    let extractedText = ''
 
-    console.log(`[pdf-text-extractor] ✓ API response received`)
-    console.log(`[pdf-text-extractor] Response content blocks: ${response.content.length}`)
-
-    const extractedText =
-      response.content[0]?.type === 'text' ? response.content[0].text : ''
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items.map((item: any) => item.str).join(' ')
+        extractedText += pageText + '\n'
+      } catch (pageErr) {
+        console.warn(`[pdf-text-extractor] Warning: Failed to extract text from page ${pageNum}`)
+      }
+    }
 
     console.log(`[pdf-text-extractor] Extracted text length: ${extractedText.length} chars`)
 
-    if (!extractedText) {
+    if (!extractedText || extractedText.trim().length === 0) {
       console.error(`[pdf-text-extractor] ✗ No text extracted from PDF`)
       throw new Error('Failed to extract text from PDF - no text content found')
     }
