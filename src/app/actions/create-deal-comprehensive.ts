@@ -307,7 +307,7 @@ export async function saveBankStatements(
         total_mca_holdback: statement.total_mca_holdback,
         holdback_percentage: statement.holdback_percentage,
         net_cash_flow: statement.net_cash_flow_after_mca,
-        model_used: 'claude-haiku-4-5-20251001',
+        model_used: 'claude-sonnet-4-6',
       })
 
     if (stmtError) {
@@ -530,7 +530,7 @@ export async function saveDocumentsAndActivity(
         file_size: fileInfo?.size || 0,
         document_type: isApplication ? 'application' : 'bank_statement',
         storage_path: path,
-        model_used: 'claude-haiku-4-5-20251001',
+        model_used: 'claude-sonnet-4-6',
         uploaded_at: new Date().toISOString(),
       })
 
