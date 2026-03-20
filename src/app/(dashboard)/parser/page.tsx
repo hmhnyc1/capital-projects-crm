@@ -77,7 +77,9 @@ export default function ParserPage() {
     try {
       for (const file of files) {
         try {
-          const result = await parseFile(file, file.name)
+          const arrayBuffer = await file.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          const result = await parseFile(buffer, file.name)
           results.push({
             fileName: file.name,
             fileType: result.type as 'application' | 'bank_statement' | 'unknown',

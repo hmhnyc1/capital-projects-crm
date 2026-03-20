@@ -35,15 +35,15 @@ function makeSerializable(obj: any): any {
 /**
  * Parse a file using the new parsing libraries
  * Handles PDF extraction and determines file type
+ * Note: Accepts Buffer instead of File object because File objects cannot be passed to Server Actions
  */
 export async function parseFile(
-  file: File,
+  fileBuffer: Buffer,
   fileName: string
 ): Promise<ParseFileResult> {
   console.log(`[parse-file] ========================================`)
   console.log(`[parse-file] START PARSING: ${fileName}`)
-  console.log(`[parse-file] File size: ${file.size} bytes`)
-  console.log(`[parse-file] File type: ${file.type}`)
+  console.log(`[parse-file] File size: ${fileBuffer.byteLength} bytes`)
   console.log(`[parse-file] ========================================`)
 
   try {
@@ -52,7 +52,7 @@ export async function parseFile(
     let pdfText: string
     try {
       console.log(`[parse-file] Calling extractTextFromPDF...`)
-      pdfText = await extractTextFromPDF(file)
+      pdfText = await extractTextFromPDF(fileBuffer)
       console.log(`[parse-file] ✓ PDF extraction successful`)
       console.log(`[parse-file] Extracted text length: ${pdfText.length} characters`)
       if (pdfText.length === 0) {

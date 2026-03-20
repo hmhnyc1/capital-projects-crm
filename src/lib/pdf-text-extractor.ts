@@ -2,26 +2,19 @@
  * PDF TEXT EXTRACTOR
  *
  * Utility to extract text from PDF files using Claude's vision capabilities.
- * This allows the parsing libraries to work with PDF file objects.
+ * Accepts Buffer instead of File object because File objects cannot be passed to Server Actions
  */
 
 import Anthropic from '@anthropic-ai/sdk'
 
-export async function extractTextFromPDF(file: File): Promise<string> {
+export async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
   console.log(`[pdf-text-extractor] ========================================`)
   console.log(`[pdf-text-extractor] Starting PDF extraction`)
-  console.log(`[pdf-text-extractor] Filename: ${file.name}`)
-  console.log(`[pdf-text-extractor] File size: ${file.size} bytes`)
-  console.log(`[pdf-text-extractor] File type: ${file.type}`)
+  console.log(`[pdf-text-extractor] File size: ${fileBuffer.byteLength} bytes`)
 
   try {
-    // Read file as buffer
-    console.log(`[pdf-text-extractor] Reading file as ArrayBuffer...`)
-    const arrayBuffer = await file.arrayBuffer()
-    console.log(`[pdf-text-extractor] ✓ ArrayBuffer created (${arrayBuffer.byteLength} bytes)`)
-
-    console.log(`[pdf-text-extractor] Converting to base64...`)
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
+    console.log(`[pdf-text-extractor] Converting Buffer to base64...`)
+    const base64 = fileBuffer.toString('base64')
     console.log(`[pdf-text-extractor] ✓ Base64 conversion complete (${base64.length} chars)`)
 
     // Use Claude to extract text

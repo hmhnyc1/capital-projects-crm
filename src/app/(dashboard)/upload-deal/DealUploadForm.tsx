@@ -37,8 +37,13 @@ export default function DealUploadForm() {
       console.log(`[DealUploadForm] File size: ${file.size} bytes`)
       console.log(`[DealUploadForm] File type: ${file.type}`)
 
+      console.log(`[DealUploadForm] Converting File to Buffer...`)
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      console.log(`[DealUploadForm] Buffer created (${buffer.byteLength} bytes)`)
+
       console.log(`[DealUploadForm] Calling serverParseFile...`)
-      const result = await serverParseFile(file, file.name)
+      const result = await serverParseFile(buffer, file.name)
 
       console.log(`[DealUploadForm] Server response received`)
       console.log(`[DealUploadForm] Type: ${result.type}`)
