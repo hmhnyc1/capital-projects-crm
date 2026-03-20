@@ -13,7 +13,10 @@
       "Bash(git push:*)",
       "Bash(/tmp/qa_checklist.md:*)",
       "Read(//tmp/**)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(/tmp/check_parts.sh:*)",
+      "Bash(__NEW_LINE_6e00446aaf0d12e8__ chmod:*)",
+      "Bash(/tmp/check_parts.sh)"
     ]
   }
 }
