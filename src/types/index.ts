@@ -136,26 +136,78 @@ export interface BankTransaction {
 }
 
 export interface ParsedApplication {
+  // Basic business information
   business_legal_name: string | null
   dba: string | null
   entity_type: string | null
-  ownership_percentage: number | null
+  ein: string | null
+  date_established: string | null
+  time_in_business_years: number | null
+  industry: string | null
+
+  // Contact & location
+  business_address: string | null
+  business_city: string | null
+  business_state: string | null
+  business_zip: string | null
+  business_phone: string | null
+  business_fax: string | null
+  business_email: string | null
+  business_website: string | null
+
+  // Financial information
+  stated_monthly_revenue: number | null
+  monthly_rent: number | null
+  average_monthly_balance: number | null
+  monthly_processing_volume: number | null
+
+  // Property information
+  landlord_name: string | null
+  landlord_phone: string | null
+
+  // Use of funds
+  use_of_funds: string | null
+
+  // Owner information
   owner_name: string | null
   owner_dob: string | null
   owner_ssn_last4: string | null
-  business_address: string | null
-  business_phone: string | null
-  business_email: string | null
-  ein: string | null
-  time_in_business_years: number | null
-  industry: string | null
-  stated_monthly_revenue: number | null
+  owner_address: string | null
+  ownership_percentage: number | null
+  owner_email: string | null
+  owner_cell_phone: string | null
+  owner_home_phone: string | null
+
+  // Additional owners
+  co_owners: Array<{
+    name: string
+    title?: string
+    dob?: string
+    ssn_last4?: string
+    ownership_percentage: number
+    email?: string
+    phone?: string
+  }> | null
+
+  // Bank information
   bank_name: string | null
+  bank_account_number_last4: string | null
+  bank_routing_number: string | null
   account_type: string | null
-  landlord_name: string | null
-  monthly_rent: number | null
-  use_of_funds: string | null
-  co_owners: Array<{ name: string; percentage: number }> | null
+
+  // Payment processor
+  processor_name: string | null
+
+  // Other liabilities
+  existing_advances: string | null
+
+  // Document metadata
+  signature_date: string | null
+
+  // Quality metrics
+  confidence_score: number
+  extraction_notes: string[]
+  additional_notes: string | null
 }
 
 export interface ParsedBankStatement {

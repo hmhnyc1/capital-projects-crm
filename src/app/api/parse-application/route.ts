@@ -5,46 +5,97 @@ import type { ParsedApplication } from '@/types'
 // Configure timeout for this API route (5 minutes for PDF analysis)
 export const maxDuration = 300
 
-const SYSTEM_PROMPT = `You are an expert at extracting information from Merchant Cash Advance applications. Extract EVERY piece of information you can find in this document. Look through the entire document carefully including all pages, fine print, signature sections, and any handwritten notes.
+const SYSTEM_PROMPT = `You are an expert MCA underwriter who has reviewed thousands of merchant cash advance applications from hundreds of different ISOs and lenders. Each application looks different but contains similar information. Your job is to find and extract every piece of relevant underwriting information regardless of how it is labeled or formatted.
 
-Return ONLY a valid JSON object. No explanation, no markdown, just the JSON.
-If a field is not found, return null, never guess.`
+Look for these types of information by their MEANING and CONTEXT, not their specific label:
+- The legal name of the business entity (may be labeled: Business Name, Legal Name, Company Name, DBA Legal, Merchant Name, Applicant)
+- What the business calls itself publicly (may be labeled: DBA, Trade Name, Doing Business As, Store Name)
+- Business tax ID (may be labeled: EIN, FEIN, Federal Tax ID, Tax ID Number, TIN)
+- How long the business has been operating (may be labeled: Time in Business, Years in Business, Date Established, Business Start Date, Date Opened)
+- What kind of business it is (may be labeled: Industry, Business Type, Type of Business, Nature of Business, SIC Code)
+- The business location (may be labeled: Address, Business Address, Location, Street Address)
+- How to reach the business (may be labeled: Phone, Business Phone, Contact Number, Tel)
+- Business email address
+- Business website
+- How much money the business makes (may be labeled: Monthly Revenue, Gross Monthly Sales, Monthly Deposits, Average Monthly Revenue, Gross Sales, Monthly Volume, Annual Revenue - divide by 12 if annual)
+- What they pay for their location (may be labeled: Monthly Rent, Rent, Lease Payment, Monthly Mortgage)
+- Who owns their building (may be labeled: Landlord, Property Owner, Lessor, Landlord Name)
+- What they want the money for (may be labeled: Use of Funds, Purpose, Reason for Funding, How will funds be used)
+- Owner full name (look for the person signing or listed as owner/principal)
+- Owner date of birth
+- Owner social security number - extract ONLY last 4 digits for security
+- Owner home address
+- Owner ownership percentage (as percentage or as decimal)
+- Owner email and phone
+- Bank where they have their business account (may be labeled: Bank Name, Financial Institution, Bank)
+- Bank account number - extract ONLY last 4 digits
+- Bank routing number
+- Average balance they keep in their account
+- Credit card processor they use (Square, Clover, Toast, Stripe, PayPal, Authorize.net, etc)
+- Monthly credit card processing volume
+- Any existing loans or MCAs mentioned with balances
+- Any co-owners or additional principals listed
+- Document signature date or application date
 
-const USER_PROMPT = `Extract these fields from the merchant application - if a field is not found, return null, never guess:
-- business_legal_name: exact legal business name
-- dba: doing business as name if different
-- entity_type: LLC, Corporation, Sole Proprietor, Partnership
-- ein: employer identification number (XX-XXXXXXX format)
-- date_established: when business was founded
-- time_in_business: years and months in business as a decimal number like 2.5
-- business_address: full street address
-- business_city, business_state, business_zip
-- business_phone, business_fax
-- business_email, business_website
-- industry: type of business
-- monthly_revenue: stated gross monthly revenue as a number
-- monthly_rent: monthly rent or mortgage payment as a number
-- landlord_name: name of landlord or property owner
-- landlord_phone
-- use_of_funds: what the merchant wants the money for
-- owner_1_name: first and last name
-- owner_1_title: title or role
-- owner_1_dob: date of birth MM/DD/YYYY
-- owner_1_ssn: last 4 digits only formatted as XXXX
-- owner_1_address: home address
-- owner_1_ownership_pct: ownership percentage as integer
-- owner_1_email, owner_1_cell_phone, owner_1_home_phone
-- owner_2_name, owner_2_title, owner_2_dob, owner_2_ssn, owner_2_ownership_pct (if exists)
-- bank_name: name of the bank
-- bank_account_number: last 4 digits only
-- bank_routing_number
-- average_monthly_balance: stated average monthly balance
-- processor_name: credit card processor name
-- monthly_processing_volume: monthly card processing volume
-- existing_advances: any existing MCA or loan balances mentioned
-- signature_date: date the application was signed
+EXTRACTION RULES:
+- If you find information that seems relevant but does not fit a standard field, include it in 'additional_notes'
+- For monetary values always return as a number without symbols or commas
+- For dates always return in YYYY-MM-DD format
+- For SSN and account numbers ONLY return last 4 digits
+- If a field genuinely does not exist in the document, return null - NEVER guess
+- If the same information appears multiple times, use the most complete version
+- Some applications have multiple pages - scan all of them
+- Some fields may be handwritten - do your best to interpret
+- Assess extraction quality: confidence_score should be 0-100 (100 = all critical fields found and clear, 0 = unable to extract meaningful data)
+- List any fields that were difficult to find, ambiguous, or required interpretation in extraction_notes
 
-Return ONLY a valid JSON object with these exact field names. No explanation, no markdown, just the JSON.`
+Return ONLY valid JSON with no explanation.`
+
+const USER_PROMPT = `Extract all available underwriting information from this merchant application. Return ONLY a valid JSON object with these fields (use null if not found, NEVER guess):
+
+{
+  "business_legal_name": "exact legal business name or null",
+  "dba": "doing business as name or null",
+  "entity_type": "LLC, Corporation, Sole Proprietor, Partnership, S-Corp, etc or null",
+  "ein": "employer identification number in any format or null",
+  "date_established": "YYYY-MM-DD or null",
+  "time_in_business_years": "as decimal number (e.g. 2.5) or null",
+  "industry": "type of business or null",
+  "business_address": "full street address or null",
+  "business_city": "city or null",
+  "business_state": "state code or full name or null",
+  "business_zip": "zip code or null",
+  "business_phone": "phone number in any format or null",
+  "business_fax": "fax number or null",
+  "business_email": "email address or null",
+  "business_website": "website URL or null",
+  "stated_monthly_revenue": "number only, no symbols or commas, or null",
+  "monthly_rent": "number only or null",
+  "average_monthly_balance": "number only or null",
+  "monthly_processing_volume": "number only or null",
+  "landlord_name": "name or null",
+  "landlord_phone": "phone or null",
+  "use_of_funds": "description of intended use or null",
+  "owner_name": "primary owner name or null",
+  "owner_dob": "YYYY-MM-DD or null",
+  "owner_ssn_last4": "last 4 digits only, no dashes, or null",
+  "owner_address": "home address or null",
+  "ownership_percentage": "as number 0-100 or null",
+  "owner_email": "email or null",
+  "owner_cell_phone": "phone or null",
+  "owner_home_phone": "phone or null",
+  "co_owners": [{"name": "...", "title": "...", "dob": "YYYY-MM-DD", "ssn_last4": "1234", "ownership_percentage": 50, "email": "...", "phone": "..."}] or null,
+  "bank_name": "name or null",
+  "bank_account_number_last4": "last 4 digits only or null",
+  "bank_routing_number": "routing number or null",
+  "account_type": "checking, savings, etc or null",
+  "processor_name": "Square, Clover, Stripe, etc or null",
+  "existing_advances": "description of other MCAs/loans or null",
+  "signature_date": "YYYY-MM-DD or null",
+  "confidence_score": "0-100 integer indicating how complete extraction was",
+  "extraction_notes": ["list", "of", "fields", "that", "were", "difficult", "or", "ambiguous"],
+  "additional_notes": "any other relevant information that doesn't fit standard fields or null"
+}`
 
 export async function POST(request: NextRequest) {
   try {
@@ -94,7 +145,7 @@ export async function POST(request: NextRequest) {
       console.log('[parse-application] Calling Anthropic API...')
       response = await client.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: [
           {
