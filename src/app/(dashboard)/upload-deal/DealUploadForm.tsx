@@ -161,9 +161,11 @@ export default function DealUploadForm() {
   }
 
   const sorted = sortBankStatements(files)
+  const hasApplication = files.some(f => f.type === 'application')
+  const hasStatements = files.some(f => f.type === 'bank_statement')
 
-  // If all parsed, show review screen
-  if (allParsed && files.some(f => f.type === 'application')) {
+  // If all parsed and has at least application OR bank statements, show review screen
+  if (allParsed && (hasApplication || hasStatements)) {
     return <ReviewScreenNew files={sorted} />
   }
 
@@ -202,7 +204,7 @@ export default function DealUploadForm() {
       >
         <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
         <p className="text-lg font-semibold text-slate-900 mb-1">Drag PDFs here</p>
-        <p className="text-sm text-slate-500">Drop 1 application + any number of bank statements</p>
+        <p className="text-sm text-slate-500">Upload application, bank statements, or both. At least one is required.</p>
       </div>
 
       {/* File List */}

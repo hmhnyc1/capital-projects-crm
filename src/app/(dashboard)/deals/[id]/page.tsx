@@ -337,6 +337,21 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* Document Collection Warning */}
+      {deal.status === 'Document Collection' && (
+        <div className="bg-amber-900/20 border-b border-amber-700 p-6">
+          <div className="max-w-7xl mx-auto flex items-start gap-4">
+            <AlertCircle className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-amber-300 text-lg">Document Collection In Progress</h2>
+              <p className="text-amber-200 text-sm mt-2">
+                This deal is waiting for additional documents to be uploaded. {files.length === 0 ? 'No documents have been received yet.' : files.some(f => f.type === 'bank_statement') ? 'Bank statements have been received, but the application is still pending.' : 'The application has been received, but bank statements are still pending.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Review Screen */}
       {files.length > 0 && (
         <div className="bg-slate-950 py-6">

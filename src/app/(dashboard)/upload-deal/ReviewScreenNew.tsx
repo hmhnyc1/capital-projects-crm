@@ -59,9 +59,13 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
   const grossProfit = paybackAmount - dealTerms.advanceAmount
   const revenuePercent = portfolio.avgMonthlyRevenue > 0 ? (dailyDebit * 30) / portfolio.avgMonthlyRevenue * 100 : 0
 
-  if (!app || statements.length === 0) {
-    return <div className="text-slate-200">Error: Missing application or bank statements</div>
+  if (!app && statements.length === 0) {
+    return <div className="text-slate-200">Error: At least an application or bank statements are required</div>
   }
+
+  // Determine if documents are incomplete
+  const missingApp = !app
+  const missingStatements = statements.length === 0
 
   async function handleCreate(status: 'approved' | 'declined' | 'counter' | 'review') {
     setCreating(true)
@@ -100,17 +104,22 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
       const fileInfos = files.map(f => ({ name: f.label, size: f.file.size }))
 
       // THIS IS THE KEY FIX: Only send jobId string, not the actual parsed data!
+      // Set status based on document completeness
+      const finalStatus = (missingApp || missingStatements) ? 'review' : (status as 'approved' | 'declined' | 'counter' | 'review')
+      const needsDocuments = missingApp || missingStatements
+
       await createDealComprehensive(
         jobId,  // ← ONLY THIS - just a string!
         dealId,
         uploadedPaths,
-        status as 'approved' | 'declined' | 'counter' | 'review',
+        finalStatus,
         {
           advanceAmount: dealTerms.advanceAmount,
           factorRate: dealTerms.factorRate,
           termDays: dealTerms.termDays,
         },
-        fileInfos
+        fileInfos,
+        needsDocuments
       )
       console.log('[ReviewScreen] ✅ Deal creation complete!')
     } catch (err) {
@@ -129,43 +138,48 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
         <div className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur border-b border-slate-800 -mx-6 px-6 py-4 space-y-3">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-slate-100">{app.business_legal_name}</h1>
-              <p className="text-sm text-slate-400 mt-1">{app.owner_name} • {app.ein}</p>
+              <h1 className="text-3xl font-bold text-slate-100">{app?.business_legal_name || 'New Deal'}</h1>
+              <p className="text-sm text-slate-400 mt-1">{app?.owner_name || 'Pending application'} • {app?.ein || '—'}</p>
             </div>
             <div className={`text-right ${riskColorClass}`}>
               <p className="text-5xl font-bold">{risk.level.toUpperCase()[0]}</p>
               <p className="text-xs text-slate-400">Score: {risk.score}/100</p>
             </div>
           </div>
-          <div className="flex gap-4 flex-wrap">
-            <StatBadge label="Time in Business" value={`${app.time_in_business_years} yrs`} />
-            <StatBadge label="Stated Revenue" value={fmt(app.stated_monthly_revenue)} />
-            <StatBadge label="Avg True Revenue" value={fmt(portfolio.avgMonthlyRevenue)} />
-            <StatBadge label="Holdback %" value={`${portfolio.avgHoldback.toFixed(1)}%`} />
-            <StatBadge label="NSFs" value={portfolio.totalNsf.toString()} />
-          </div>
+          {app && (
+            <div className="flex gap-4 flex-wrap">
+              <StatBadge label="Time in Business" value={`${app.time_in_business_years} yrs`} />
+              <StatBadge label="Stated Revenue" value={fmt(app.stated_monthly_revenue)} />
+              <StatBadge label="Avg True Revenue" value={fmt(portfolio.avgMonthlyRevenue)} />
+              <StatBadge label="Holdback %" value={`${portfolio.avgHoldback.toFixed(1)}%`} />
+              <StatBadge label="NSFs" value={portfolio.totalNsf.toString()} />
+            </div>
+          )}
         </div>
 
-        {/* DEAL HEADER SECTION */}
-        <Section title="Deal Information" section="header" expanded={expanded} toggle={toggle}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <InfoField label="Business Name" value={app.business_legal_name} />
-            <InfoField label="DBA" value={app.dba || '—'} />
-            <InfoField label="Entity Type" value={app.entity_type || '—'} />
-            <InfoField label="Owner Name" value={app.owner_name} />
-            <InfoField label="Ownership %" value={`${app.ownership_percentage || 0}%`} />
-            <InfoField label="Time in Business" value={`${app.time_in_business_years} years`} />
-            <InfoField label="Industry" value={app.industry || '—'} />
-            <InfoField label="EIN" value={app.ein} />
-            <InfoField label="Address" value={app.business_address || '—'} />
-            <InfoField label="Phone" value={app.business_phone || '—'} />
-            <InfoField label="Email" value={app.business_email || '—'} />
-            <InfoField label="Bank" value={app.bank_name || '—'} />
-          </div>
-        </Section>
+        {/* DEAL HEADER SECTION - Only show if application exists */}
+        {app && (
+          <Section title="Deal Information" section="header" expanded={expanded} toggle={toggle}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <InfoField label="Business Name" value={app.business_legal_name} />
+              <InfoField label="DBA" value={app.dba || '—'} />
+              <InfoField label="Entity Type" value={app.entity_type || '—'} />
+              <InfoField label="Owner Name" value={app.owner_name} />
+              <InfoField label="Ownership %" value={`${app.ownership_percentage || 0}%`} />
+              <InfoField label="Time in Business" value={`${app.time_in_business_years} years`} />
+              <InfoField label="Industry" value={app.industry || '—'} />
+              <InfoField label="EIN" value={app.ein} />
+              <InfoField label="Address" value={app.business_address || '—'} />
+              <InfoField label="Phone" value={app.business_phone || '—'} />
+              <InfoField label="Email" value={app.business_email || '—'} />
+              <InfoField label="Bank" value={app.bank_name || '—'} />
+            </div>
+          </Section>
+        )}
 
-        {/* EXECUTIVE SUMMARY */}
-        <Section title="Executive Summary" section="summary" expanded={expanded} toggle={toggle}>
+        {/* EXECUTIVE SUMMARY - Only show if both app and statements exist */}
+        {app && statements.length > 0 && (
+          <Section title="Executive Summary" section="summary" expanded={expanded} toggle={toggle}>
           <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
             <p className="text-slate-200 leading-relaxed">
               {app.business_legal_name} is a {app.entity_type?.toLowerCase() || 'business'} in the {app.industry || 'retail'} industry,
@@ -197,10 +211,12 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               )}
             </p>
           </div>
-        </Section>
+          </Section>
+        )}
 
-        {/* MERCHANT INFORMATION */}
-        <Section title="Merchant Information" section="merchant" expanded={expanded} toggle={toggle}>
+        {/* MERCHANT INFORMATION - Only show if application exists */}
+        {app && (
+          <Section title="Merchant Information" section="merchant" expanded={expanded} toggle={toggle}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <DetailField label="Legal Name" value={app.business_legal_name} />
@@ -248,7 +264,8 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               )}
             </div>
           </div>
-        </Section>
+          </Section>
+        )}
 
         {/* COMBINED BANK ANALYSIS */}
         <Section title="Combined Bank Analysis Summary" section="analysis" expanded={expanded} toggle={toggle}>
@@ -416,7 +433,7 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
             <ScoreRow label="NSF History" value={portfolio.totalNsf} benchmark="0 events" good={portfolio.totalNsf === 0} />
             <ScoreRow label="Holdback %" value={portfolio.avgHoldback} benchmark="<10%" good={portfolio.avgHoldback < 10} />
             <ScoreRow label="MCA Positions" value={mcaPositions.length} benchmark="0-1" good={mcaPositions.length <= 1} />
-            <ScoreRow label="Time in Business" value={app.time_in_business_years || 0} benchmark="5+ years" good={(app.time_in_business_years || 0) >= 5} />
+            {app && <ScoreRow label="Time in Business" value={app.time_in_business_years || 0} benchmark="5+ years" good={(app.time_in_business_years || 0) >= 5} />}
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">

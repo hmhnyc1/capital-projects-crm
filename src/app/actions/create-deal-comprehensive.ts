@@ -575,7 +575,8 @@ export async function createDealComprehensive(
   filePaths: string[],
   position: 'approved' | 'declined' | 'counter' | 'review',
   customTerms?: { advanceAmount: number; factorRate: number; termDays: number },
-  uploadedFiles?: Array<{ name: string; size: number }>
+  uploadedFiles?: Array<{ name: string; size: number }>,
+  documentCollectionNeeded?: boolean
 ) {
   try {
     console.log('═══════════════════════════════════════════════════════════════════')
@@ -612,7 +613,9 @@ export async function createDealComprehensive(
     // Stage 2: Create deal
     console.log('───────────────────────────────────────────────────────────────────')
     console.log('[createDealComprehensive] 📋 STAGE 2: Creating deal...')
-    const { deal, riskMetrics } = await createDeal(application, statements, merchant.id, position, customTerms)
+    // If document collection is needed, override position to 'Document Collection'
+    const dealPosition = documentCollectionNeeded ? 'Document Collection' : position
+    const { deal, riskMetrics } = await createDeal(application, statements, merchant.id, dealPosition as any, customTerms)
     console.log('[createDealComprehensive] ✅ Stage 2 complete - Deal ID:', deal.id)
 
     // Stage 3: Save bank statements
