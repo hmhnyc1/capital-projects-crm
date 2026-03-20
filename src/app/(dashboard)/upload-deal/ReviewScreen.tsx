@@ -133,11 +133,11 @@ export default function ReviewScreen({ files }: { files: UploadedFile[] }) {
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>Owner Name</Label>
-              <p className="text-slate-100 font-medium">{app?.owner_name || '—'}</p>
+              <p className="text-slate-100 font-medium">{app?.owner_1_name || '—'}</p>
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>Ownership %</Label>
-              <p className="text-slate-100 font-medium">{app?.ownership_percentage ? `${app.ownership_percentage}%` : '—'}</p>
+              <p className="text-slate-100 font-medium">{app?.owner_1_ownership_pct ? `${app.owner_1_ownership_pct}%` : '—'}</p>
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>EIN</Label>
@@ -152,8 +152,8 @@ export default function ReviewScreen({ files }: { files: UploadedFile[] }) {
               <p className="text-slate-100 font-medium">{app?.time_in_business_years ? `${app.time_in_business_years} years` : '—'}</p>
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
-              <Label>Stated Monthly Revenue</Label>
-              <p className="text-green-400 font-medium text-lg">{fmt(app?.stated_monthly_revenue)}</p>
+              <Label>Monthly Revenue</Label>
+              <p className="text-green-400 font-medium text-lg">{fmt(app?.monthly_revenue)}</p>
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>Business Address</Label>
@@ -166,10 +166,6 @@ export default function ReviewScreen({ files }: { files: UploadedFile[] }) {
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>Email</Label>
               <p className="text-slate-100 font-medium text-sm">{app?.business_email || '—'}</p>
-            </div>
-            <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
-              <Label>Bank Account Type</Label>
-              <p className="text-slate-100 font-medium">{app?.account_type || '—'}</p>
             </div>
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
               <Label>Bank Name</Label>
@@ -403,15 +399,16 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 function BankAnalysisCard({ statement: s, month, fmt }: { statement: ParsedBankStatement; month: number; fmt: (n: number | null | undefined) => string }) {
-  const mcaTotal = s.mca_debits?.reduce((sum, d) => sum + (d.amount || d.total_monthly || 0), 0) || 0
-  const avgMcaDaily = s.mca_debits?.reduce((sum, d) => sum + (d.daily_debit_amount || d.daily_amount || 0), 0) || 0
+  const mcaTotal = s.total_mca_holdback || 0
+  const avgMcaDaily = s.mca_positions?.reduce((sum, d) => sum + d.amount_per_debit, 0) || 0
+  const holdbackPct = s.holdback_pct_of_true_revenue || 0
 
   return (
     <div className="bg-slate-900 rounded-lg p-4 border border-slate-800">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-100">
-            {new Date(s.statement_year, s.statement_month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {s.statement_month_label || 'Unknown Month'}
           </h3>
           <p className="text-sm text-slate-400">Month {month}</p>
         </div>
@@ -420,7 +417,7 @@ function BankAnalysisCard({ statement: s, month, fmt }: { statement: ParsedBankS
       <div className="grid grid-cols-4 gap-3 mb-4">
         <div className="bg-slate-800 rounded p-3">
           <p className="text-xs text-slate-400 mb-1">Revenue</p>
-          <p className="text-lg font-bold text-green-400">{fmt(s.true_revenue_deposits)}</p>
+          <p className="text-lg font-bold text-green-400">{fmt(s.true_revenue_total)}</p>
         </div>
         <div className="bg-slate-800 rounded p-3">
           <p className="text-xs text-slate-400 mb-1">Avg Daily Balance</p>
@@ -432,18 +429,18 @@ function BankAnalysisCard({ statement: s, month, fmt }: { statement: ParsedBankS
         </div>
         <div className="bg-slate-800 rounded p-3">
           <p className="text-xs text-slate-400 mb-1">MCA Holdback</p>
-          <p className={`text-lg font-bold ${s.holdback_percentage > 15 ? 'text-red-400' : 'text-yellow-400'}`}>{s.holdback_percentage.toFixed(1)}%</p>
+          <p className={`text-lg font-bold ${holdbackPct > 15 ? 'text-red-400' : 'text-yellow-400'}`}>{holdbackPct.toFixed(1)}%</p>
         </div>
       </div>
 
-      {s.mca_debits && s.mca_debits.length > 0 && (
+      {s.mca_positions && s.mca_positions.length > 0 && (
         <div className="bg-slate-800/50 rounded p-3">
           <p className="text-xs text-slate-400 mb-2 font-semibold">MCA Positions</p>
           <div className="space-y-1 text-sm">
-            {s.mca_debits.map((d, i) => (
+            {s.mca_positions.map((d, i) => (
               <div key={i} className="flex justify-between">
                 <span className="text-slate-300">{d.funder_name}</span>
-                <span className="text-yellow-400 font-medium">{fmt(d.daily_debit_amount || d.daily_amount)}/day</span>
+                <span className="text-yellow-400 font-medium">{fmt(d.amount_per_debit)}/day</span>
               </div>
             ))}
             {mcaTotal > 0 && (

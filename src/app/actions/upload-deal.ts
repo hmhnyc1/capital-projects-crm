@@ -11,7 +11,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   let score = 0
 
   // Revenue check
-  if (application?.stated_monthly_revenue && application.stated_monthly_revenue < 10000) {
+  if (application?.monthly_revenue && application.monthly_revenue < 10000) {
     flags.push({ severity: 'medium', message: 'Low stated monthly revenue' })
     score += 15
   }
@@ -40,7 +40,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
 
   // Holdback
   const avgHoldback = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue ?? 0), 0) / statements.length
     : 0
   if (avgHoldback > 15) {
     flags.push({ severity: 'high', message: `High MCA holdback (${avgHoldback.toFixed(1)}% of revenue)` })
@@ -50,7 +50,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   // Stacking
   const lenders = new Set<string>()
   statements.forEach(s => {
-    s.mca_debits?.forEach(d => lenders.add(d.funder_name))
+    s.mca_positions?.forEach(d => lenders.add(d.funder_name))
   })
   if (lenders.size > 1) {
     flags.push({ severity: 'high', message: `Multiple MCA lenders detected (${lenders.size})` })
@@ -59,7 +59,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
 
   // Revenue trend
   if (statements.length > 1) {
-    const revenues = statements.map(s => s.true_revenue_deposits)
+    const revenues = statements.map(s => s.true_revenue_total)
     const lastRev = revenues[revenues.length - 1]
     const firstRev = revenues[0]
     if (lastRev < firstRev * 0.8) {
@@ -81,7 +81,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
 
   // Calculate recommended advance
   let baseAdvance = statements.length > 0
-    ? (statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length) * 0.1
+    ? (statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length) * 0.1
     : 0
 
   const mediumFlags = flags.filter(f => f.severity === 'medium').length
@@ -112,7 +112,7 @@ function calculateComponentScores(application: ParsedApplication, statements: Pa
   const avgAdb = statements.reduce((sum, s) => sum + (s.average_daily_balance || 0), 0) / statements.length
   const adbScore = Math.max(0, Math.min(100, (avgAdb / 10000) * 100))
 
-  const revenues = statements.map(s => s.true_revenue_deposits)
+  const revenues = statements.map(s => s.true_revenue_total)
   let revenueTrendScore = 75
   if (revenues.length > 1) {
     const trend = ((revenues[revenues.length - 1] - revenues[0]) / revenues[0]) * 100
@@ -124,7 +124,7 @@ function calculateComponentScores(application: ParsedApplication, statements: Pa
   const totalNsf = statements.reduce((sum, s) => sum + s.nsf_count, 0)
   const nsfScore = Math.max(0, 100 - totalNsf * 20)
 
-  const lenderCount = new Set(statements.flatMap(s => s.mca_debits?.map(d => d.funder_name) || [])).size
+  const lenderCount = new Set(statements.flatMap(s => s.mca_positions?.map(d => d.funder_name) || [])).size
   const mcaStackScore = Math.max(0, 100 - lenderCount * 25)
 
   const timeInBusinessScore = Math.min(100, (application?.time_in_business_years || 0) * 25)
@@ -155,8 +155,8 @@ export async function createDealFromUpload(
   // Create merchant contact
   const merchantData = {
     user_id: user.id,
-    first_name: application.owner_name?.split(' ')[0] || 'Merchant',
-    last_name: application.owner_name?.split(' ').slice(1).join(' ') || '',
+    first_name: application.owner_1_name?.split(' ')[0] || 'Merchant',
+    last_name: application.owner_1_name?.split(' ').slice(1).join(' ') || '',
     company: application.business_legal_name || application.dba,
     business_legal_name: application.business_legal_name || null,
     dba: application.dba || null,
@@ -166,12 +166,11 @@ export async function createDealFromUpload(
     address: application.business_address || null,
     business_address: application.business_address || null,
     ein: application.ein || null,
-    owner_name: application.owner_name || null,
-    ownership_percentage: application.ownership_percentage || null,
+    owner_name: application.owner_1_name || null,
+    ownership_percentage: application.owner_1_ownership_pct || null,
     industry: application.industry || null,
-    monthly_revenue: application.stated_monthly_revenue || null,
+    monthly_revenue: application.monthly_revenue || null,
     bank_name: application.bank_name || null,
-    account_type: application.account_type || null,
     landlord_name: application.landlord_name || null,
     monthly_rent: application.monthly_rent || null,
     use_of_funds: application.use_of_funds || null,
@@ -268,13 +267,13 @@ export async function createDealFromUpload(
 
   statements.forEach((s, idx) => {
     const monthKey = `${s.statement_year}-${String(s.statement_month).padStart(2, '0')}`
-    s.mca_debits?.forEach(d => {
+    s.mca_positions?.forEach(d => {
       lendersSet.add(d.funder_name)
       if (!lenderInfo[d.funder_name]) {
-        lenderInfo[d.funder_name] = { firstMonth: monthKey, lastMonth: monthKey, dailyDebit: d.daily_debit_amount || d.daily_amount || 0 }
+        lenderInfo[d.funder_name] = { firstMonth: monthKey, lastMonth: monthKey, dailyDebit: d.amount_per_debit || 0 }
       } else {
         lenderInfo[d.funder_name].lastMonth = monthKey
-        lenderInfo[d.funder_name].dailyDebit = d.daily_debit_amount || d.daily_amount || 0
+        lenderInfo[d.funder_name].dailyDebit = d.amount_per_debit || 0
       }
     })
   })

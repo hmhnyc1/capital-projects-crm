@@ -139,7 +139,7 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-100">{app?.business_legal_name || 'New Deal'}</h1>
-              <p className="text-sm text-slate-400 mt-1">{app?.owner_name || 'Pending application'} • {app?.ein || '—'}</p>
+              <p className="text-sm text-slate-400 mt-1">{app?.owner_1_name || 'Pending application'} • {app?.ein || '—'}</p>
             </div>
             <div className={`text-right ${riskColorClass}`}>
               <p className="text-5xl font-bold">{risk.level.toUpperCase()[0]}</p>
@@ -149,7 +149,7 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
           {app && (
             <div className="flex gap-4 flex-wrap">
               <StatBadge label="Time in Business" value={`${app.time_in_business_years} yrs`} />
-              <StatBadge label="Stated Revenue" value={fmt(app.stated_monthly_revenue)} />
+              <StatBadge label="Stated Revenue" value={fmt(app.monthly_revenue)} />
               <StatBadge label="Avg True Revenue" value={fmt(portfolio.avgMonthlyRevenue)} />
               <StatBadge label="Holdback %" value={`${portfolio.avgHoldback.toFixed(1)}%`} />
               <StatBadge label="NSFs" value={portfolio.totalNsf.toString()} />
@@ -164,8 +164,8 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               <InfoField label="Business Name" value={app.business_legal_name} />
               <InfoField label="DBA" value={app.dba || '—'} />
               <InfoField label="Entity Type" value={app.entity_type || '—'} />
-              <InfoField label="Owner Name" value={app.owner_name} />
-              <InfoField label="Ownership %" value={`${app.ownership_percentage || 0}%`} />
+              <InfoField label="Owner Name" value={app.owner_1_name} />
+              <InfoField label="Ownership %" value={`${app.owner_1_ownership_pct || 0}%`} />
               <InfoField label="Time in Business" value={`${app.time_in_business_years} years`} />
               <InfoField label="Industry" value={app.industry || '—'} />
               <InfoField label="EIN" value={app.ein} />
@@ -183,7 +183,7 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
           <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700">
             <p className="text-slate-200 leading-relaxed">
               {app.business_legal_name} is a {app.entity_type?.toLowerCase() || 'business'} in the {app.industry || 'retail'} industry,
-              owned by {app.owner_name} with {app.time_in_business_years} years in business. The merchant reports {fmt(app.stated_monthly_revenue)}
+              owned by {app.owner_1_name} with {app.time_in_business_years} years in business. The merchant reports {fmt(app.monthly_revenue)}
               in monthly revenue, though bank analysis shows {fmt(portfolio.avgMonthlyRevenue)} average true revenue across {metrics.length} months analyzed
               from {metrics[0]?.month} to {metrics[metrics.length - 1]?.month}.
             </p>
@@ -222,10 +222,10 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               <DetailField label="Legal Name" value={app.business_legal_name} />
               <DetailField label="DBA" value={app.dba || '—'} />
               <DetailField label="Entity Type" value={app.entity_type || '—'} />
-              <DetailField label="Owner Name" value={app.owner_name} />
-              <DetailField label="Ownership %" value={`${app.ownership_percentage || 0}%`} />
-              <DetailField label="Owner DOB" value={app.owner_dob || '—'} />
-              <DetailField label="SSN Last 4" value={app.owner_ssn_last4 ? `***-**-${app.owner_ssn_last4}` : '—'} />
+              <DetailField label="Owner Name" value={app.owner_1_name} />
+              <DetailField label="Ownership %" value={`${app.owner_1_ownership_pct || 0}%`} />
+              <DetailField label="Owner DOB" value={app.owner_1_dob || '—'} />
+              <DetailField label="SSN Last 4" value={app.owner_1_ssn_last4 ? `***-**-${app.owner_1_ssn_last4}` : '—'} />
               <DetailField label="EIN" value={app.ein || '—'} />
               <DetailField label="Time in Business" value={`${app.time_in_business_years} years`} />
               <DetailField label="Industry" value={app.industry || '—'} />
@@ -233,7 +233,6 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               <DetailField label="Phone" value={app.business_phone || '—'} />
               <DetailField label="Email" value={app.business_email || '—'} />
               <DetailField label="Bank Name" value={app.bank_name || '—'} />
-              <DetailField label="Account Type" value={app.account_type || '—'} />
               <DetailField label="Landlord Name" value={app.landlord_name || '—'} />
               <DetailField label="Monthly Rent" value={fmt(app.monthly_rent)} />
               <DetailField label="Use of Funds" value={app.use_of_funds || '—'} />
@@ -245,21 +244,21 @@ export default function ReviewScreenNew({ files, readOnly = false }: { files: Up
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-slate-900 rounded p-3">
                   <p className="text-xs text-slate-400 mb-1">Stated Monthly</p>
-                  <p className="text-lg font-bold text-slate-100">{fmt(app.stated_monthly_revenue)}</p>
+                  <p className="text-lg font-bold text-slate-100">{fmt(app.monthly_revenue)}</p>
                 </div>
                 <div className="bg-slate-900 rounded p-3">
                   <p className="text-xs text-slate-400 mb-1">Analyzed Avg</p>
                   <p className="text-lg font-bold text-slate-100">{fmt(portfolio.avgMonthlyRevenue)}</p>
                 </div>
-                <div className={`bg-slate-900 rounded p-3 border ${getRevenueVariance(app.stated_monthly_revenue, portfolio.avgMonthlyRevenue) > 20 ? 'border-red-700' : 'border-slate-700'}`}>
+                <div className={`bg-slate-900 rounded p-3 border ${getRevenueVariance(app.monthly_revenue, portfolio.avgMonthlyRevenue) > 20 ? 'border-red-700' : 'border-slate-700'}`}>
                   <p className="text-xs text-slate-400 mb-1">Variance</p>
-                  <p className={`text-lg font-bold ${getRevenueVariance(app.stated_monthly_revenue, portfolio.avgMonthlyRevenue) > 20 ? 'text-red-400' : 'text-slate-100'}`}>
-                    {getRevenueVariance(app.stated_monthly_revenue, portfolio.avgMonthlyRevenue) > 0 ? '+' : ''}
-                    {getRevenueVariance(app.stated_monthly_revenue, portfolio.avgMonthlyRevenue).toFixed(1)}%
+                  <p className={`text-lg font-bold ${getRevenueVariance(app.monthly_revenue, portfolio.avgMonthlyRevenue) > 20 ? 'text-red-400' : 'text-slate-100'}`}>
+                    {getRevenueVariance(app.monthly_revenue, portfolio.avgMonthlyRevenue) > 0 ? '+' : ''}
+                    {getRevenueVariance(app.monthly_revenue, portfolio.avgMonthlyRevenue).toFixed(1)}%
                   </p>
                 </div>
               </div>
-              {getRevenueVariance(app.stated_monthly_revenue, portfolio.avgMonthlyRevenue) > 20 && (
+              {getRevenueVariance(app.monthly_revenue, portfolio.avgMonthlyRevenue) > 20 && (
                 <p className="text-xs text-red-300 mt-3">⚠️ Stated revenue is significantly higher than analyzed revenue. Underwriter should investigate.</p>
               )}
             </div>

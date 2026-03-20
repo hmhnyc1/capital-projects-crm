@@ -17,8 +17,8 @@ export function calculateRiskScore(files: UploadedFile[]): RiskAssessment {
     .map(f => f.data as ParsedBankStatement)
 
   // Revenue check
-  if (app?.stated_monthly_revenue && app.stated_monthly_revenue < 10000) {
-    flags.push({ severity: 'medium', message: 'Low stated monthly revenue' })
+  if (app?.monthly_revenue && app.monthly_revenue < 10000) {
+    flags.push({ severity: 'medium', message: 'Low monthly revenue' })
     score += 15
   }
 
@@ -46,7 +46,7 @@ export function calculateRiskScore(files: UploadedFile[]): RiskAssessment {
 
   // Holdback
   const avgHoldback = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue || 0), 0) / statements.length
     : 0
   if (avgHoldback > 15) {
     flags.push({ severity: 'high', message: `High MCA holdback (${avgHoldback.toFixed(1)}% of revenue)` })
@@ -56,7 +56,7 @@ export function calculateRiskScore(files: UploadedFile[]): RiskAssessment {
   // Stacking
   const lenders = new Set<string>()
   statements.forEach(s => {
-    s.mca_debits?.forEach(d => lenders.add(d.funder_name))
+    s.mca_positions?.forEach(d => lenders.add(d.funder_name))
   })
   if (lenders.size > 1) {
     flags.push({ severity: 'high', message: `Multiple MCA lenders detected (${lenders.size})` })
@@ -65,7 +65,7 @@ export function calculateRiskScore(files: UploadedFile[]): RiskAssessment {
 
   // Revenue trend
   if (statements.length > 1) {
-    const revenues = statements.map(s => s.true_revenue_deposits)
+    const revenues = statements.map(s => s.true_revenue_total)
     const lastRev = revenues[revenues.length - 1]
     const firstRev = revenues[0]
     if (lastRev < firstRev * 0.8) {
@@ -88,7 +88,7 @@ export function calculateRiskScore(files: UploadedFile[]): RiskAssessment {
 
   // Recommended advance: 10% of avg monthly revenue minus 20% haircut for each medium+ flag
   let baseAdvance = statements.length > 0
-    ? (statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length) * 0.1
+    ? (statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length) * 0.1
     : 0
 
   const mediumFlags = flags.filter(f => f.severity === 'medium').length

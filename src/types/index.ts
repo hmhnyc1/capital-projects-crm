@@ -135,8 +135,12 @@ export interface BankTransaction {
   created_at: string
 }
 
+// ============================================================================
+// PARSED APPLICATION TYPE (from application-parser)
+// ============================================================================
+
 export interface ParsedApplication {
-  // Basic business information
+  // Business Information
   business_legal_name: string | null
   dba: string | null
   entity_type: string | null
@@ -144,8 +148,6 @@ export interface ParsedApplication {
   date_established: string | null
   time_in_business_years: number | null
   industry: string | null
-
-  // Contact & location
   business_address: string | null
   business_city: string | null
   business_state: string | null
@@ -155,92 +157,161 @@ export interface ParsedApplication {
   business_email: string | null
   business_website: string | null
 
-  // Financial information
-  stated_monthly_revenue: number | null
+  // Financial Information
+  monthly_revenue: number | null
   monthly_rent: number | null
-  average_monthly_balance: number | null
-  monthly_processing_volume: number | null
-
-  // Property information
   landlord_name: string | null
   landlord_phone: string | null
-
-  // Use of funds
   use_of_funds: string | null
 
-  // Owner information
-  owner_name: string | null
-  owner_dob: string | null
-  owner_ssn_last4: string | null
-  owner_address: string | null
-  ownership_percentage: number | null
-  owner_email: string | null
-  owner_cell_phone: string | null
-  owner_home_phone: string | null
-
-  // Additional owners
-  co_owners: Array<{
-    name: string
-    title?: string
-    dob?: string
-    ssn_last4?: string
-    ownership_percentage: number
-    email?: string
-    phone?: string
-  }> | null
-
-  // Bank information
+  // Banking Information
   bank_name: string | null
-  bank_account_number_last4: string | null
-  bank_routing_number: string | null
-  account_type: string | null
-
-  // Payment processor
+  bank_account_last4: string | null
+  bank_routing: string | null
+  average_monthly_balance: number | null
   processor_name: string | null
+  monthly_processing_volume: number | null
 
-  // Other liabilities
-  existing_advances: string | null
+  // Owner 1 Information
+  owner_1_name: string | null
+  owner_1_title: string | null
+  owner_1_dob: string | null
+  owner_1_ssn_last4: string | null
+  owner_1_address: string | null
+  owner_1_city: string | null
+  owner_1_state: string | null
+  owner_1_zip: string | null
+  owner_1_ownership_pct: number | null
+  owner_1_email: string | null
+  owner_1_cell: string | null
+  owner_1_home_phone: string | null
 
-  // Document metadata
-  signature_date: string | null
+  // Owner 2 Information
+  owner_2_name: string | null
+  owner_2_title: string | null
+  owner_2_dob: string | null
+  owner_2_ssn_last4: string | null
+  owner_2_address: string | null
+  owner_2_city: string | null
+  owner_2_state: string | null
+  owner_2_zip: string | null
+  owner_2_ownership_pct: number | null
+  owner_2_email: string | null
+  owner_2_cell: string | null
 
-  // Quality metrics
+  // Additional Information
+  existing_obligations: string | null
   confidence_score: number
-  extraction_notes: string[]
+  low_confidence_fields: string[]
+  extraction_notes: string
   additional_notes: string | null
 }
 
+// ============================================================================
+// PARSED BANK STATEMENT TYPES (from bank-statement-parser)
+// ============================================================================
+
+export interface ParsedDeposit {
+  date: string // YYYY-MM-DD
+  description: string
+  amount: number
+  source_name?: string
+}
+
+export interface ParsedWithdrawal {
+  date: string // YYYY-MM-DD
+  description: string
+  amount: number
+}
+
+export interface NSFEvent {
+  date: string // YYYY-MM-DD
+  amount: number
+  description: string
+  fee_charged: number
+}
+
+export interface MCAPosition {
+  funder_name: string
+  descriptor_matched: string
+  amount_per_debit: number
+  frequency: string // Daily, Weekly, Monthly
+  total_debited_this_month: number
+  debit_dates: string[] // YYYY-MM-DD
+}
+
+export interface DailyBalance {
+  date: string // YYYY-MM-DD
+  balance: number
+  status: 'OK' | 'LOW' | 'CRITICAL'
+}
+
 export interface ParsedBankStatement {
-  statement_period_text: string | null
-  statement_start_date: string | null
-  statement_end_date: string | null
-  statement_month: number
-  statement_year: number
+  // Bank identification
+  bank_name: string
+  account_number_last4: string | null
+  routing_number: string | null
+
+  // Statement period
+  statement_period_start: string | null // YYYY-MM-DD
+  statement_period_end: string | null // YYYY-MM-DD
+  statement_month_label: string | null // e.g., "January 2026"
+  statement_month?: number // 1-12 (for backwards compatibility)
+  statement_year?: number // 4-digit year (for backwards compatibility)
+
+  // Opening and closing balances
   starting_balance: number | null
   ending_balance: number | null
-  total_deposits: number
-  deposit_count: number
-  true_revenue_deposits: number
-  non_revenue_deposits: number
+
+  // Deposit analysis
+  total_deposits: number | null
+  deposit_count: number | null
+  revenue_deposits: ParsedDeposit[]
+  non_revenue_deposits: ParsedDeposit[]
+  true_revenue_total: number
+  non_revenue_total: number
+
+  // Daily balance analysis
   average_daily_balance: number | null
   lowest_daily_balance: number | null
-  nsf_count: number
-  nsf_dates: string[]
-  nsf_amounts: number[]
-  mca_debits: Array<{
-    funder_name: string
-    daily_debit_amount: number | null
-    daily_amount?: number | null
-    weekly_amount: number | null
-    frequency: 'daily' | 'weekly'
-    total_monthly: number
-    amount?: number
-  }> | null
-  total_mca_holdback: number
-  holdback_percentage: number
-  net_cash_flow_after_mca: number
+  lowest_balance_date: string | null
+  highest_daily_balance: number | null
+  highest_balance_date: string | null
+
+  // Days below various thresholds
   days_below_500: number
   days_below_1000: number
+  days_below_2000: number
+
+  // Withdrawal analysis
+  total_withdrawals: number | null
+  withdrawal_count: number | null
+
+  // NSF and overdraft events
+  nsf_events: NSFEvent[]
+  nsf_count: number
+  nsf_total_amount: number
+
+  // MCA position analysis
+  mca_positions: MCAPosition[]
+  total_mca_holdback: number
+  holdback_pct_of_true_revenue: number | null
+  holdback_pct_of_total_deposits: number | null
+
+  // Daily balance details
+  daily_balances: DailyBalance[]
+
+  // Notable transactions
+  largest_single_deposit: ParsedDeposit | null
+  largest_single_withdrawal: ParsedWithdrawal | null
+
+  // Cash flow summary
+  net_cash_flow: number
+
+  // Quality metrics
+  confidence_score: number
+  low_confidence_fields: string[]
+  parsing_notes: string[]
 }
 
 export interface UploadedFile {

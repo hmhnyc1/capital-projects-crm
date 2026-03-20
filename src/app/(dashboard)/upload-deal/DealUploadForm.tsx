@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react'
 import type { UploadedFile } from '@/types'
 import ReviewScreenNew from './ReviewScreenNew'
-import { generateLabel, sortBankStatements } from './utils'
+import { sortBankStatements } from './utils'
+import { parseFile as serverParseFile } from './parse-file'
 
 export default function DealUploadForm() {
   const [files, setFiles] = useState<UploadedFile[]>([])
@@ -29,100 +30,19 @@ export default function DealUploadForm() {
     })
 
     try {
-      const fileName = file.name.toLowerCase()
+      console.log(`[DealUploadForm] Parsing file ${index + 1}: ${file.name}`)
 
-      // Filename heuristics to determine likely type
-      const hasMonthName = /january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/\d{1,2}|\d{4}-\d{2}/i.test(fileName)
-      const hasDatePattern = /\d{1,2}-\d{1,2}|\d{4}-\d{2}-\d{2}|202[0-9]/.test(fileName)
-      const hasAppKeyword = /app|application|form|merchant|underwriting/i.test(fileName)
-      const likelyBankStatement = hasMonthName || (hasDatePattern && !hasAppKeyword)
-      const likelyApplication = hasAppKeyword
+      // Use new server action for parsing
+      const result = await serverParseFile(file, file.name)
 
-      // Determine which parser to try first
-      let appResult = null
-      let stmtResult = null
+      console.log(`[DealUploadForm] Parse result type: ${result.type}`)
 
-      const appFormData = new FormData()
-      appFormData.append('pdf', file)
-
-      const stmtFormData = new FormData()
-      stmtFormData.append('pdf', file)
-
-      // Try parsers and collect results
-      try {
-        console.log(`[DealUploadForm] Parsing file ${index + 1}: ${file.name}`)
-        const appResponse = await fetch('/api/parse-application', { method: 'POST', body: appFormData })
-        console.log(`[DealUploadForm] Application parse response: ${appResponse.status} ${appResponse.statusText}`)
-        if (appResponse.ok) {
-          try {
-            const responseText = await appResponse.text()
-            console.log(`[DealUploadForm] Application response text: ${responseText.substring(0, 200)}...`)
-            appResult = JSON.parse(responseText)
-            console.log(`[DealUploadForm] Application parsed successfully:`, appResult?.data ? 'has data' : 'no data')
-          } catch (parseErr) {
-            console.error('Failed to parse application response JSON:', parseErr)
-            appResult = null
-          }
-        } else {
-          console.log(`[DealUploadForm] Application parse failed with status ${appResponse.status}`)
-        }
-      } catch (err) {
-        console.error('Application parse request failed:', err)
-        appResult = null
-      }
-
-      try {
-        const stmtResponse = await fetch('/api/parse-bank-statement', { method: 'POST', body: stmtFormData })
-        console.log(`[DealUploadForm] Bank statement parse response: ${stmtResponse.status} ${stmtResponse.statusText}`)
-        if (stmtResponse.ok) {
-          try {
-            const responseText = await stmtResponse.text()
-            console.log(`[DealUploadForm] Bank statement response text: ${responseText.substring(0, 200)}...`)
-            stmtResult = JSON.parse(responseText)
-            console.log(`[DealUploadForm] Bank statement parsed successfully:`, stmtResult?.data ? 'has data' : 'no data')
-          } catch (parseErr) {
-            console.error('Failed to parse bank statement response JSON:', parseErr)
-            stmtResult = null
-          }
-        } else {
-          console.log(`[DealUploadForm] Bank statement parse failed with status ${stmtResponse.status}`)
-        }
-      } catch (err) {
-        console.error('Bank statement parse request failed:', err)
-        stmtResult = null
-      }
-
-      // Determine type based on what was actually extracted
-      const hasAppData = appResult?.data && (appResult.data.business_legal_name || appResult.data.owner_name || appResult.data.ein)
-      const hasStmtData = stmtResult?.data && (stmtResult.data.statement_month || stmtResult.data.total_deposits)
-
-      if (hasAppData && !hasStmtData) {
-        uploadedFile.type = 'application'
-        uploadedFile.data = appResult.data
-      } else if (hasStmtData && !hasAppData) {
-        uploadedFile.type = 'bank_statement'
-        uploadedFile.data = stmtResult.data
-      } else if (hasAppData && hasStmtData) {
-        // Both have data, use filename hint
-        uploadedFile.type = likelyBankStatement ? 'bank_statement' : 'application'
-        uploadedFile.data = uploadedFile.type === 'application' ? appResult.data : stmtResult.data
-      } else if (likelyBankStatement) {
-        // Filename suggests bank statement
-        uploadedFile.type = 'bank_statement'
-        uploadedFile.data = stmtResult?.data || null
-      } else if (likelyApplication) {
-        // Filename suggests application
-        uploadedFile.type = 'application'
-        uploadedFile.data = appResult?.data || null
-      } else {
-        // Default to whichever had data, prefer bank statement if ambiguous
-        uploadedFile.type = hasStmtData ? 'bank_statement' : hasAppData ? 'application' : 'unknown'
-        uploadedFile.data = uploadedFile.type === 'application' ? appResult?.data : uploadedFile.type === 'bank_statement' ? stmtResult?.data : null
-      }
-
+      uploadedFile.type = result.type
+      uploadedFile.data = result.data
+      uploadedFile.error = result.error
+      uploadedFile.label = result.label
       uploadedFile.parsing = false
-      uploadedFile.parsed = uploadedFile.type !== 'unknown'
-      uploadedFile.label = generateLabel(uploadedFile)
+      uploadedFile.parsed = result.type !== 'unknown'
     } catch (err) {
       uploadedFile.parsing = false
       uploadedFile.error = err instanceof Error ? err.message : 'Parse failed'

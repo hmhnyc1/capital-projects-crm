@@ -292,20 +292,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Failed to parse extracted data: ${parseErr}` }, { status: 500 })
     }
 
-    // Recalculate statement month/year based on period text
-    const periodAnalysis = calculateStatementMonthAndYear(parsed.statement_period_text)
-    parsed.statement_month = periodAnalysis.month
-    parsed.statement_year = periodAnalysis.year
-    parsed.statement_start_date = periodAnalysis.startDate
-    parsed.statement_end_date = periodAnalysis.endDate
-
     console.log('[parse-bank-statement] ═══════════════════════════════════════')
-    console.log('[parse-bank-statement] 📄 STATEMENT LABELING COMPLETE')
+    console.log('[parse-bank-statement] 📄 STATEMENT PARSING COMPLETE')
     console.log('[parse-bank-statement] ───────────────────────────────────────')
-    console.log(`[parse-bank-statement] Period Text: "${parsed.statement_period_text}"`)
-    console.log(`[parse-bank-statement] Start Date: ${periodAnalysis.startDate}`)
-    console.log(`[parse-bank-statement] End Date: ${periodAnalysis.endDate}`)
-    console.log(`[parse-bank-statement] ✅ LABEL ASSIGNED: "${periodAnalysis.label}"`)
+    console.log(`[parse-bank-statement] Start Date: ${parsed.statement_period_start}`)
+    console.log(`[parse-bank-statement] End Date: ${parsed.statement_period_end}`)
     console.log('[parse-bank-statement] ═══════════════════════════════════════')
 
     const responseData = { data: parsed }

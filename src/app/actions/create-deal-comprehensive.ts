@@ -15,8 +15,8 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   const flags: Array<{ severity: 'high' | 'medium' | 'low'; message: string; value: string }> = []
   let score = 0
 
-  if (application?.stated_monthly_revenue && application.stated_monthly_revenue < 10000) {
-    flags.push({ severity: 'medium', message: 'Low stated monthly revenue', value: application.stated_monthly_revenue.toString() })
+  if (application?.monthly_revenue && application.monthly_revenue < 10000) {
+    flags.push({ severity: 'medium', message: 'Low monthly revenue', value: application.monthly_revenue.toString() })
     score += 15
   }
 
@@ -40,7 +40,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   }
 
   const avgHoldback = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue ?? 0), 0) / statements.length
     : 0
   if (avgHoldback > 15) {
     flags.push({ severity: 'high', message: `High MCA holdback (${avgHoldback.toFixed(1)}%)`, value: avgHoldback.toString() })
@@ -49,7 +49,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
 
   const lenders = new Set<string>()
   statements.forEach(s => {
-    s.mca_debits?.forEach(d => lenders.add(d.funder_name))
+    s.mca_positions?.forEach(d => lenders.add(d.funder_name))
   })
   if (lenders.size > 1) {
     flags.push({ severity: 'high', message: `Multiple MCA lenders (${lenders.size})`, value: lenders.size.toString() })
@@ -57,7 +57,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   }
 
   if (statements.length > 1) {
-    const revenues = statements.map(s => s.true_revenue_deposits)
+    const revenues = statements.map(s => s.true_revenue_total)
     const lastRev = revenues[revenues.length - 1]
     const firstRev = revenues[0]
     if (lastRev < firstRev * 0.8) {
@@ -70,7 +70,7 @@ function calculateRiskMetrics(application: ParsedApplication, statements: Parsed
   const riskGrade = score < 35 ? 'A' : score < 50 ? 'B' : score < 65 ? 'C' : score < 80 ? 'D' : score < 95 ? 'E' : 'F'
 
   let baseAdvance = statements.length > 0
-    ? (statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length) * 0.1
+    ? (statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length) * 0.1
     : 0
 
   const mediumFlags = flags.filter(f => f.severity === 'medium').length
@@ -96,8 +96,8 @@ export async function createContact(
 
   const merchantData = {
     user_id: user.id,
-    first_name: application.owner_name?.split(' ')[0] || 'Merchant',
-    last_name: application.owner_name?.split(' ').slice(1).join(' ') || '',
+    first_name: application.owner_1_name?.split(' ')[0] || 'Merchant',
+    last_name: application.owner_1_name?.split(' ').slice(1).join(' ') || '',
     company: application.business_legal_name || application.dba,
     email: application.business_email || null,
     phone: application.business_phone || null,
@@ -105,14 +105,13 @@ export async function createContact(
     business_legal_name: application.business_legal_name || null,
     dba: application.dba || null,
     entity_type: application.entity_type || null,
-    owner_dob: application.owner_dob || null,
-    owner_ssn_last4: application.owner_ssn_last4 || null,
-    ownership_percentage: application.ownership_percentage ? Math.floor(application.ownership_percentage) : null,
+    owner_dob: application.owner_1_dob || null,
+    owner_ssn_last4: application.owner_1_ssn_last4 || null,
+    ownership_percentage: application.owner_1_ownership_pct ? Math.floor(application.owner_1_ownership_pct) : null,
     industry: application.industry || null,
     ein: application.ein || null,
-    stated_monthly_revenue: application.stated_monthly_revenue || null,
+    stated_monthly_revenue: application.monthly_revenue || null,
     bank_name: application.bank_name || null,
-    account_type: application.account_type || null,
     landlord_name: application.landlord_name || null,
     monthly_rent: application.monthly_rent || null,
     use_of_funds: application.use_of_funds || null,
@@ -168,7 +167,7 @@ export async function createDeal(
   })
 
   const avgMonthlyRevenue = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length
     : 0
 
   const avgAdb = statements.length > 0
@@ -177,17 +176,17 @@ export async function createDeal(
 
   const totalNsf = statements.reduce((sum, s) => sum + s.nsf_count, 0)
   const avgHoldback = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue ?? 0), 0) / statements.length
     : 0
 
-  const revenues = statements.map(s => s.true_revenue_deposits)
+  const revenues = statements.map(s => s.true_revenue_total)
   const revenueTrend = revenues.length < 2 ? 'Flat'
     : revenues[revenues.length - 1] > revenues[0] ? 'Growing'
     : revenues[revenues.length - 1] < revenues[0] ? 'Declining'
     : 'Flat'
 
   // Generate executive summary
-  const executiveSummary = `${application.business_legal_name} is a ${application.entity_type?.toLowerCase() || 'business'} in the ${application.industry || 'retail'} industry, owned by ${application.owner_name} with ${application.time_in_business_years} years in business. The merchant reports ${application.stated_monthly_revenue?.toLocaleString() || 'undisclosed'} in monthly revenue, though bank analysis shows ${avgMonthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} average true revenue across ${statements.length} months. The merchant has an average daily balance of ${avgAdb.toLocaleString(undefined, { maximumFractionDigits: 0 })} and ${totalNsf} NSF events. ${avgHoldback > 0 ? `Current MCA obligations represent ${avgHoldback.toFixed(1)}% holdback on revenue.` : 'No active MCA positions identified.'} Risk assessment: ${riskMetrics.riskGrade === 'A' ? 'LOW - Strong approval candidate' : riskMetrics.riskGrade === 'B' ? 'LOW-MEDIUM - Review carefully' : riskMetrics.riskGrade === 'C' ? 'MEDIUM - Counter-offer recommended' : 'HIGH - Decline or significant restructuring required'}.`
+  const executiveSummary = `${application.business_legal_name} is a ${application.entity_type?.toLowerCase() || 'business'} in the ${application.industry || 'retail'} industry, owned by ${application.owner_1_name} with ${application.time_in_business_years} years in business. The merchant reports ${application.monthly_revenue?.toLocaleString() || 'undisclosed'} in monthly revenue, though bank analysis shows ${avgMonthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} average true revenue across ${statements.length} months. The merchant has an average daily balance of ${avgAdb.toLocaleString(undefined, { maximumFractionDigits: 0 })} and ${totalNsf} NSF events. ${avgHoldback > 0 ? `Current MCA obligations represent ${avgHoldback.toFixed(1)}% holdback on revenue.` : 'No active MCA positions identified.'} Risk assessment: ${riskMetrics.riskGrade === 'A' ? 'LOW - Strong approval candidate' : riskMetrics.riskGrade === 'B' ? 'LOW-MEDIUM - Review carefully' : riskMetrics.riskGrade === 'C' ? 'MEDIUM - Counter-offer recommended' : 'HIGH - Decline or significant restructuring required'}.`
 
   // Create deal
   const dealNumber = generateDealNumber()
@@ -210,8 +209,8 @@ export async function createDeal(
     average_daily_balance_all_months: avgAdb,
     total_nsfs_all_months: totalNsf,
     average_holdback_percentage: avgHoldback,
-    date_range_start: statements[0]?.statement_start_date || null,
-    date_range_end: statements[statements.length - 1]?.statement_end_date || null,
+    date_range_start: statements[0]?.statement_period_start || null,
+    date_range_end: statements[statements.length - 1]?.statement_period_end || null,
     total_months_analyzed: statements.length,
     recommended_max_advance: customTerms?.advanceAmount || riskMetrics.recommendedAdvance,
     recommended_factor_rate_min: 1.2,
@@ -278,7 +277,7 @@ export async function saveBankStatements(
     console.log(`[saveBankStatements] 📊 Statement ${i + 1}/${statements.length}:`, {
       month: statement.statement_month,
       year: statement.statement_year,
-      revenue: statement.true_revenue_deposits,
+      revenue: statement.true_revenue_total,
     })
 
     const { error: stmtError } = await supabase
@@ -289,24 +288,24 @@ export async function saveBankStatements(
         merchant_id: merchantId,
         statement_month: statement.statement_month,
         statement_year: statement.statement_year,
-        statement_period_start: statement.statement_start_date,
-        statement_period_end: statement.statement_end_date,
+        statement_period_start: statement.statement_period_start,
+        statement_period_end: statement.statement_period_end,
         starting_balance: statement.starting_balance,
         ending_balance: statement.ending_balance,
         total_deposits: statement.total_deposits,
-        true_revenue: statement.true_revenue_deposits,
-        non_revenue_deposits: statement.non_revenue_deposits,
+        true_revenue: statement.true_revenue_total,
+        non_revenue_deposits: statement.non_revenue_total,
         average_daily_balance: statement.average_daily_balance,
         lowest_daily_balance: statement.lowest_daily_balance,
         days_below_500: statement.days_below_500,
         days_below_1000: statement.days_below_1000,
         nsf_count: statement.nsf_count,
-        nsf_dates: statement.nsf_dates,
-        nsf_amounts: statement.nsf_amounts,
-        nsf_total: statement.nsf_amounts?.reduce((sum: number, a: number) => sum + a, 0) || 0,
+        nsf_dates: statement.nsf_events.map(e => e.date),
+        nsf_amounts: statement.nsf_events.map(e => e.amount),
+        nsf_total: statement.nsf_total_amount,
         total_mca_holdback: statement.total_mca_holdback,
-        holdback_percentage: statement.holdback_percentage,
-        net_cash_flow: statement.net_cash_flow_after_mca,
+        holdback_percentage: statement.holdback_pct_of_true_revenue,
+        net_cash_flow: statement.net_cash_flow,
         model_used: 'claude-sonnet-4-6',
       })
 
@@ -338,9 +337,9 @@ export async function saveMCAPositions(
   const lenderMap: Record<string, { first: string; last: string; daily: number }> = {}
   statements.forEach((s) => {
     const month = `${s.statement_year}-${String(s.statement_month).padStart(2, '0')}`
-    s.mca_debits?.forEach(d => {
+    s.mca_positions?.forEach(d => {
       if (!lenderMap[d.funder_name]) {
-        lenderMap[d.funder_name] = { first: month, last: month, daily: d.daily_debit_amount || 0 }
+        lenderMap[d.funder_name] = { first: month, last: month, daily: d.amount_per_debit || 0 }
       } else {
         lenderMap[d.funder_name].last = month
       }
@@ -395,7 +394,7 @@ export async function saveRiskAssessment(
   }
 
   const avgMonthlyRevenue = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length
     : 0
 
   const avgAdb = statements.length > 0
@@ -404,10 +403,10 @@ export async function saveRiskAssessment(
 
   const totalNsf = statements.reduce((sum, s) => sum + s.nsf_count, 0)
   const avgHoldback = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue ?? 0), 0) / statements.length
     : 0
 
-  const revenues = statements.map(s => s.true_revenue_deposits)
+  const revenues = statements.map(s => s.true_revenue_total)
   const revenueTrend = revenues.length < 2 ? 'Flat'
     : revenues[revenues.length - 1] > revenues[0] ? 'Growing'
     : revenues[revenues.length - 1] < revenues[0] ? 'Declining'
@@ -416,7 +415,7 @@ export async function saveRiskAssessment(
   // Get lender count
   const lenderSet = new Set<string>()
   statements.forEach(s => {
-    s.mca_debits?.forEach(d => lenderSet.add(d.funder_name))
+    s.mca_positions?.forEach(d => lenderSet.add(d.funder_name))
   })
 
   const adbScore = Math.max(0, Math.min(100, (avgAdb / 10000) * 100))
@@ -444,10 +443,10 @@ export async function saveRiskAssessment(
       revenue_trend_direction: revenueTrend as 'Growing' | 'Declining' | 'Flat',
       revenue_trend_percentage: statements.length > 1 ? ((revenues[revenues.length - 1] - revenues[0]) / revenues[0] * 100) : 0,
       time_in_business_score: timeInBusinessScore,
-      stated_vs_actual_score: 100 - Math.abs((application.stated_monthly_revenue || avgMonthlyRevenue) - avgMonthlyRevenue) / avgMonthlyRevenue * 100,
-      stated_revenue: application.stated_monthly_revenue || null,
+      stated_vs_actual_score: 100 - Math.abs((application.monthly_revenue || avgMonthlyRevenue) - avgMonthlyRevenue) / avgMonthlyRevenue * 100,
+      stated_revenue: application.monthly_revenue || null,
       actual_revenue: avgMonthlyRevenue,
-      revenue_variance_percentage: application.stated_monthly_revenue ? Math.abs((application.stated_monthly_revenue - avgMonthlyRevenue) / avgMonthlyRevenue * 100) : 0,
+      revenue_variance_percentage: application.monthly_revenue ? Math.abs((application.monthly_revenue - avgMonthlyRevenue) / avgMonthlyRevenue * 100) : 0,
       recommended_max_advance: customTerms?.advanceAmount || riskMetrics.recommendedAdvance,
       recommended_factor_rate_min: 1.2,
       recommended_factor_rate_max: 1.45,

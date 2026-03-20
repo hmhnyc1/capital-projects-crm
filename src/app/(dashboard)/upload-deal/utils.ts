@@ -9,15 +9,27 @@ export function generateLabel(file: UploadedFile): string {
     if (file.data && 'statement_month' in file.data) {
       const data = file.data as ParsedBankStatement
       try {
-        // Use the calculated month/year which is based on the actual period dates
-        const month = new Date(data.statement_year, data.statement_month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-
-        // If we have the actual dates, log them for debugging
-        if (data.statement_start_date && data.statement_end_date) {
-          console.log(`[generateLabel] Bank statement period: ${data.statement_start_date} to ${data.statement_end_date} → Label: ${month}`)
+        // Use statement_month_label if available, otherwise try to construct from period dates
+        if (data.statement_month_label) {
+          return data.statement_month_label
         }
 
-        return month
+        // Try to extract month/year from statement_period_start
+        if (data.statement_period_start) {
+          const date = new Date(data.statement_period_start)
+          return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        }
+
+        // Fallback to manually constructed month (if statement_month and statement_year are provided)
+        if (data.statement_month && data.statement_year) {
+          const month = new Date(data.statement_year, data.statement_month - 1).toLocaleDateString(
+            'en-US',
+            { month: 'long', year: 'numeric' }
+          )
+          return month
+        }
+
+        return 'Bank Statement'
       } catch {
         return 'Bank Statement'
       }
@@ -42,10 +54,14 @@ export function sortBankStatements(files: UploadedFile[]): UploadedFile[] {
     const aData = a.data as ParsedBankStatement | null
     const bData = b.data as ParsedBankStatement | null
     if (!aData || !bData) return 0
-    if (aData.statement_year !== bData.statement_year) {
-      return aData.statement_year - bData.statement_year
+    const aYear = aData.statement_year ?? 0
+    const bYear = bData.statement_year ?? 0
+    if (aYear !== bYear) {
+      return aYear - bYear
     }
-    return aData.statement_month - bData.statement_month
+    const aMonth = aData.statement_month ?? 0
+    const bMonth = bData.statement_month ?? 0
+    return aMonth - bMonth
   })
   const others = files.filter(f => f.type !== 'bank_statement')
   return [...others, ...statements]
@@ -78,10 +94,10 @@ export function calculateMonthlySummary(files: UploadedFile[]) {
   const months = statements.map(s => `${s.statement_year}-${String(s.statement_month).padStart(2, '0')}`)
   const dateRange = months.length > 0 ? `${months[0]} to ${months[months.length - 1]}` : 'N/A'
   const avgMonthlyRevenue = statements.length > 0
-    ? statements.reduce((sum, s) => sum + s.true_revenue_deposits, 0) / statements.length
+    ? statements.reduce((sum, s) => sum + s.true_revenue_total, 0) / statements.length
     : 0
 
-  const revenues = statements.map(s => s.true_revenue_deposits)
+  const revenues = statements.map(s => s.true_revenue_total)
   const revenueTrend =
     revenues.length < 2 ? 'N/A' :
     revenues[revenues.length - 1] > revenues[0] ? 'Growing' :
@@ -114,7 +130,7 @@ export function calculatePortfolioMetrics(statements: ParsedBankStatement[]): Po
     }
   }
 
-  const revenues = statements.map(s => s.true_revenue_deposits)
+  const revenues = statements.map(s => s.true_revenue_total)
   const avgMonthlyRevenue = revenues.reduce((sum, r) => sum + r, 0) / revenues.length
 
   let revenueTrend = 'Flat'
@@ -133,10 +149,10 @@ export function calculatePortfolioMetrics(statements: ParsedBankStatement[]): Po
   const totalNsf = statements.reduce((sum, s) => sum + s.nsf_count, 0)
 
   const totalMcaObligations = statements.reduce((sum, s) => {
-    return sum + (s.mca_debits?.reduce((mSum, d) => mSum + (d.amount || 0), 0) || 0)
+    return sum + (s.mca_positions?.reduce((mSum, d) => mSum + d.total_debited_this_month, 0) || 0)
   }, 0)
 
-  const avgHoldback = statements.reduce((sum, s) => sum + s.holdback_percentage, 0) / statements.length
+  const avgHoldback = statements.reduce((sum, s) => sum + (s.holdback_pct_of_true_revenue || 0), 0) / statements.length
 
   return {
     avgMonthlyRevenue,
@@ -160,12 +176,14 @@ export function extractMCAPositions(statements: ParsedBankStatement[]): MCAPosit
   const positions: Record<string, { dailyDebit: number; months: Set<string> }> = {}
 
   statements.forEach(s => {
-    const monthKey = `${s.statement_year}-${String(s.statement_month).padStart(2, '0')}`
-    s.mca_debits?.forEach(d => {
+    const month = s.statement_month ?? 0
+    const year = s.statement_year ?? 0
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`
+    s.mca_positions?.forEach(d => {
       if (!positions[d.funder_name]) {
         positions[d.funder_name] = { dailyDebit: 0, months: new Set() }
       }
-      positions[d.funder_name].dailyDebit = d.daily_debit_amount || d.daily_amount || 0
+      positions[d.funder_name].dailyDebit = d.amount_per_debit || 0
       positions[d.funder_name].months.add(monthKey)
     })
   })
@@ -183,7 +201,8 @@ export function extractMCAPositions(statements: ParsedBankStatement[]): MCAPosit
     .sort((a, b) => b.dailyDebit - a.dailyDebit)
 }
 
-export function getMonthLabel(month: number, year: number): string {
+export function getMonthLabel(month: number | undefined, year: number | undefined): string {
+  if (!month || !year) return 'Unknown Month'
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December']
   return `${monthNames[month - 1]} ${year}`
@@ -214,15 +233,15 @@ export function generateStatementMetrics(statements: ParsedBankStatement[]): Sta
     month: getMonthLabel(s.statement_month, s.statement_year),
     startBalance: s.starting_balance,
     endBalance: s.ending_balance,
-    trueRevenue: s.true_revenue_deposits,
-    nonRevenueDeposits: s.non_revenue_deposits,
-    totalDeposits: s.total_deposits,
+    trueRevenue: s.true_revenue_total,
+    nonRevenueDeposits: s.non_revenue_total,
+    totalDeposits: s.total_deposits || 0,
     avgDailyBalance: s.average_daily_balance,
     lowestBalance: s.lowest_daily_balance,
     nsfCount: s.nsf_count,
     mcaHoldback: s.total_mca_holdback,
-    holdbackPercent: s.holdback_percentage,
-    netCashFlow: s.net_cash_flow_after_mca,
+    holdbackPercent: s.holdback_pct_of_true_revenue || 0,
+    netCashFlow: s.net_cash_flow,
   }))
 }
 
@@ -240,14 +259,14 @@ export function findLowestAndHighestMonth(statements: ParsedBankStatement[]): {
   let highest = statements[0]
 
   statements.forEach(s => {
-    if (s.true_revenue_deposits < lowest.true_revenue_deposits) lowest = s
-    if (s.true_revenue_deposits > highest.true_revenue_deposits) highest = s
+    if (s.true_revenue_total < lowest.true_revenue_total) lowest = s
+    if (s.true_revenue_total > highest.true_revenue_total) highest = s
   })
 
   return {
     lowestMonth: getMonthLabel(lowest.statement_month, lowest.statement_year),
-    lowestRevenue: lowest.true_revenue_deposits,
+    lowestRevenue: lowest.true_revenue_total,
     highestMonth: getMonthLabel(highest.statement_month, highest.statement_year),
-    highestRevenue: highest.true_revenue_deposits,
+    highestRevenue: highest.true_revenue_total,
   }
 }
