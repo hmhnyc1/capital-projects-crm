@@ -16,31 +16,31 @@ const statusVariant: Record<string, 'success' | 'warning' | 'danger' | 'info' | 
 
 export default function ContactRow({ contact }: ContactRowProps) {
   return (
-    <tr className="hover:bg-slate-50 transition-colors">
+    <tr className="hover:bg-bg-tertiary transition-smooth border-b border-border">
       <td className="px-6 py-4">
         <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-semibold">
               {contact.first_name[0]}{contact.last_name[0]}
             </span>
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+            <p className="text-sm font-medium text-text-primary group-hover:text-accent-primary transition-smooth">
               {contact.first_name} {contact.last_name}
             </p>
-            {contact.title && <p className="text-xs text-slate-500">{contact.title}</p>}
+            {contact.title && <p className="text-xs text-text-muted">{contact.title}</p>}
           </div>
         </Link>
       </td>
-      <td className="px-6 py-4 text-sm text-slate-600">{contact.company || '—'}</td>
-      <td className="px-6 py-4 text-sm text-slate-600">
+      <td className="px-6 py-4 text-sm text-text-secondary">{contact.company || '—'}</td>
+      <td className="px-6 py-4 text-sm text-text-secondary">
         {contact.email ? (
-          <a href={`mailto:${contact.email}`} className="hover:text-blue-600 transition-colors">
+          <a href={`mailto:${contact.email}`} className="hover:text-accent-primary transition-smooth">
             {contact.email}
           </a>
         ) : '—'}
       </td>
-      <td className="px-6 py-4 text-sm text-slate-600">{contact.phone || '—'}</td>
+      <td className="px-6 py-4 text-sm text-text-secondary">{contact.phone || '—'}</td>
       <td className="px-6 py-4">
         <Badge variant={contact.type === 'lead' ? 'warning' : 'info'}>
           {contact.type === 'lead' ? 'Lead' : 'Contact'}
@@ -51,7 +51,7 @@ export default function ContactRow({ contact }: ContactRowProps) {
           {contact.status.charAt(0).toUpperCase() + contact.status.slice(1)}
         </Badge>
       </td>
-      <td className="px-6 py-4 text-sm text-slate-500">
+      <td className="px-6 py-4 text-sm text-text-muted">
         {format(new Date(contact.created_at), 'MMM d, yyyy')}
       </td>
     </tr>

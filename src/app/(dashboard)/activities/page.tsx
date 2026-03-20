@@ -29,12 +29,12 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: S
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Activities</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{activities?.length ?? 0} activities</p>
+          <h1 className="text-3xl font-bold text-text-primary">Activities</h1>
+          <p className="text-text-muted text-sm mt-0.5">{activities?.length ?? 0} activities</p>
         </div>
         <Link
           href="/activities/new"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          className="inline-flex items-center gap-2 bg-accent-primary hover:bg-opacity-90 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-smooth"
         >
           <Plus className="w-4 h-4" />
           Log Activity
@@ -43,35 +43,35 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: S
 
       <ActivitiesFilter activeType={type} />
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-bg-secondary rounded-xl border border-border overflow-hidden">
         {error ? (
-          <div className="p-8 text-center text-red-600">Error: {error.message}</div>
+          <div className="p-8 text-center text-danger">Error: {error.message}</div>
         ) : !activities || activities.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="bg-slate-100 p-4 rounded-full mb-4">
-              <ActivityIcon className="w-8 h-8 text-slate-400" />
+            <div className="bg-bg-tertiary p-4 rounded-full mb-4">
+              <ActivityIcon className="w-8 h-8 text-text-muted" />
             </div>
-            <p className="text-slate-600 font-medium">No activities found</p>
-            <p className="text-slate-400 text-sm mt-1">Start logging calls, notes, meetings, and more</p>
+            <p className="text-text-secondary font-medium">No activities found</p>
+            <p className="text-text-muted text-sm mt-1">Start logging calls, notes, meetings, and more</p>
             <Link
               href="/activities/new"
-              className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+              className="mt-4 inline-flex items-center gap-2 bg-accent-primary hover:bg-opacity-90 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-smooth"
             >
               <Plus className="w-4 h-4" />
               Log Activity
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {(activities as Activity[]).map(activity => (
-              <div key={activity.id} className="p-4 hover:bg-slate-50 transition-colors">
+              <div key={activity.id} className="p-4 hover:bg-bg-tertiary transition-smooth">
                 <div className="flex items-start gap-4">
                   <div className="flex-1">
                     <ActivityItem activity={activity} showRelated />
                     {activity.deals && (
                       <Link
                         href={`/deals/${activity.deal_id}`}
-                        className="mt-1.5 inline-block text-xs text-slate-400 hover:text-blue-600 transition-colors"
+                        className="mt-1.5 inline-block text-xs text-text-muted hover:text-accent-primary transition-smooth"
                       >
                         Deal: {activity.deals.title}
                       </Link>

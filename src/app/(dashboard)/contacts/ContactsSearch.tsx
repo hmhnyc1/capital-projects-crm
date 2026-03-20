@@ -44,31 +44,31 @@ export default function ContactsSearch({ initialQ = '', initialType = '' }: Prop
   return (
     <div className="flex flex-wrap items-center gap-3 mb-4">
       <div className="relative flex-1 min-w-[200px] max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
         <input
           type="text"
           value={q}
           onChange={handleQChange}
           placeholder="Search contacts..."
-          className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm text-text-primary placeholder-text-muted bg-bg-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-smooth"
         />
         {q && (
           <button onClick={() => { setQ(''); updateSearch('', type) }} className="absolute right-3 top-1/2 -translate-y-1/2">
-            <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+            <X className="w-4 h-4 text-text-muted hover:text-text-secondary" />
           </button>
         )}
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500">Filter:</span>
+        <span className="text-sm text-text-muted">Filter:</span>
         {['lead', 'contact'].map(t => (
           <button
             key={t}
             onClick={() => handleTypeChange(t)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-smooth ${
               type === t
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'
+                ? 'bg-accent-primary text-white'
+                : 'bg-bg-tertiary border border-border text-text-secondary hover:text-text-primary'
             }`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -77,7 +77,7 @@ export default function ContactsSearch({ initialQ = '', initialType = '' }: Prop
         {(q || type) && (
           <button
             onClick={clearSearch}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1"
+            className="px-3 py-1.5 rounded-lg text-sm font-medium text-text-muted hover:text-text-secondary hover:bg-bg-tertiary transition-smooth flex items-center gap-1"
           >
             <X className="w-3.5 h-3.5" />
             Clear

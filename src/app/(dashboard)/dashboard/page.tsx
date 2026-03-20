@@ -8,12 +8,12 @@ import Link from 'next/link'
 const STAGES: DealStage[] = ['Prospecting', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 
 const stageColors: Record<DealStage, string> = {
-  'Prospecting': 'bg-slate-400',
-  'Qualified': 'bg-blue-400',
-  'Proposal': 'bg-yellow-400',
-  'Negotiation': 'bg-orange-400',
-  'Closed Won': 'bg-green-500',
-  'Closed Lost': 'bg-red-400',
+  'Prospecting': 'bg-text-muted',
+  'Qualified': 'bg-accent-primary',
+  'Proposal': 'bg-warning',
+  'Negotiation': 'bg-accent-secondary',
+  'Closed Won': 'bg-success',
+  'Closed Lost': 'bg-danger',
 }
 
 export default async function DashboardPage() {
@@ -80,8 +80,8 @@ export default async function DashboardPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Your CRM and MCA portfolio at a glance</p>
+        <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
+        <p className="text-text-muted text-sm mt-0.5">Your CRM and MCA portfolio at a glance</p>
       </div>
 
       {/* CRM Stats */}
@@ -118,55 +118,55 @@ export default async function DashboardPage() {
 
       {/* MCA Portfolio Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-5 text-white">
+        <div className="bg-gradient-to-br from-accent-primary to-accent-secondary rounded-xl p-5 text-white">
           <div className="flex items-center gap-2 mb-2">
             <BarChart3 className="w-4 h-4 opacity-80" />
             <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Portfolio Balance</span>
           </div>
-          <p className="text-2xl font-bold">${totalPortfolioBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <p className="text-2xl font-bold font-mono">${totalPortfolioBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
           <Link href="/portfolio" className="text-xs opacity-70 hover:opacity-100 mt-1 block">View portfolio →</Link>
         </div>
-        <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-5 text-white">
+        <div className="bg-gradient-to-br from-success to-success/80 rounded-xl p-5 text-white">
           <div className="flex items-center gap-2 mb-2">
             <Briefcase className="w-4 h-4 opacity-80" />
             <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Active MCAs</span>
           </div>
-          <p className="text-2xl font-bold">{activeMCACount}</p>
+          <p className="text-2xl font-bold font-mono">{activeMCACount}</p>
           <p className="text-xs opacity-70 mt-1">Active advances</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-5 text-white">
+        <div className="bg-gradient-to-br from-accent-secondary to-accent-primary rounded-xl p-5 text-white">
           <div className="flex items-center gap-2 mb-2">
             <CreditCard className="w-4 h-4 opacity-80" />
             <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Collections MTD</span>
           </div>
-          <p className="text-2xl font-bold">${collectionsThisMonth.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <p className="text-2xl font-bold font-mono">${collectionsThisMonth.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
           <Link href="/payments" className="text-xs opacity-70 hover:opacity-100 mt-1 block">View payments →</Link>
         </div>
-        <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl p-5 text-white">
+        <div className="bg-gradient-to-br from-warning to-warning/80 rounded-xl p-5 text-white">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 opacity-80" />
             <span className="text-xs font-medium opacity-80 uppercase tracking-wide">Avg Factor Rate</span>
           </div>
-          <p className="text-2xl font-bold">{avgFactorRate > 0 ? avgFactorRate.toFixed(2) : '—'}</p>
+          <p className="text-2xl font-bold font-mono">{avgFactorRate > 0 ? avgFactorRate.toFixed(2) : '—'}</p>
           <p className="text-xs opacity-70 mt-1">Across active deals</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Pipeline by Stage */}
-        <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-base font-semibold text-slate-900 mb-5">Pipeline by Stage</h2>
+        <div className="lg:col-span-3 bg-bg-secondary rounded-xl border border-border p-6">
+          <h2 className="text-base font-semibold text-text-primary mb-5">Pipeline by Stage</h2>
           <div className="space-y-4">
             {dealsByStage.map(({ stage, count, value }) => (
               <div key={stage}>
                 <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="font-medium text-slate-700">{stage}</span>
-                  <div className="flex items-center gap-3 text-slate-500">
+                  <span className="font-medium text-text-primary">{stage}</span>
+                  <div className="flex items-center gap-3 text-text-muted">
                     <span>{count} deal{count !== 1 ? 's' : ''}</span>
-                    {value > 0 && <span className="text-slate-400">${value.toLocaleString()}</span>}
+                    {value > 0 && <span className="text-text-secondary font-mono">${value.toLocaleString()}</span>}
                   </div>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${stageColors[stage]}`}
                     style={{ width: `${(count / maxCount) * 100}%` }}
@@ -178,18 +178,18 @@ export default async function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-base font-semibold text-slate-900 mb-5">Recent Activity</h2>
+        <div className="lg:col-span-2 bg-bg-secondary rounded-xl border border-border p-6">
+          <h2 className="text-base font-semibold text-text-primary mb-5">Recent Activity</h2>
           {recentActivities && recentActivities.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {(recentActivities as Activity[]).map(activity => (
                 <ActivityItem key={activity.id} activity={activity} showRelated />
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-slate-400 text-sm">No recent activity</p>
-              <p className="text-slate-300 text-xs mt-1">Activities will appear here</p>
+              <p className="text-text-muted text-sm">No recent activity</p>
+              <p className="text-text-muted text-xs mt-1">Activities will appear here</p>
             </div>
           )}
         </div>

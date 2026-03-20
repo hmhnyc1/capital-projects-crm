@@ -6,13 +6,13 @@ import { DealStage, Deal } from '@/types'
 
 const STAGES: DealStage[] = ['Prospecting', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 
-const stageConfig: Record<DealStage, { color: string; headerColor: string }> = {
-  'Prospecting': { color: 'border-slate-300', headerColor: 'bg-slate-100 text-slate-700' },
-  'Qualified': { color: 'border-blue-300', headerColor: 'bg-blue-50 text-blue-700' },
-  'Proposal': { color: 'border-yellow-300', headerColor: 'bg-yellow-50 text-yellow-700' },
-  'Negotiation': { color: 'border-orange-300', headerColor: 'bg-orange-50 text-orange-700' },
-  'Closed Won': { color: 'border-green-300', headerColor: 'bg-green-50 text-green-700' },
-  'Closed Lost': { color: 'border-red-300', headerColor: 'bg-red-50 text-red-700' },
+const stageConfig: Record<DealStage, { color: string; headerColor: string; accentColor: string }> = {
+  'Prospecting': { color: 'border-text-muted', headerColor: 'bg-bg-tertiary text-text-secondary', accentColor: 'text-text-muted' },
+  'Qualified': { color: 'border-accent-primary', headerColor: 'bg-accent-primary bg-opacity-10 text-accent-primary', accentColor: 'text-accent-primary' },
+  'Proposal': { color: 'border-warning', headerColor: 'bg-warning bg-opacity-10 text-warning', accentColor: 'text-warning' },
+  'Negotiation': { color: 'border-accent-secondary', headerColor: 'bg-accent-secondary bg-opacity-10 text-accent-secondary', accentColor: 'text-accent-secondary' },
+  'Closed Won': { color: 'border-success', headerColor: 'bg-success bg-opacity-10 text-success', accentColor: 'text-success' },
+  'Closed Lost': { color: 'border-danger', headerColor: 'bg-danger bg-opacity-10 text-danger', accentColor: 'text-danger' },
 }
 
 export default async function DealsPage() {
@@ -34,14 +34,14 @@ export default async function DealsPage() {
     <div className="p-6 max-w-full mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Deals Pipeline</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {deals?.length ?? 0} deals · Total value: ${totalValue.toLocaleString()}
+          <h1 className="text-3xl font-bold text-text-primary">Deals Pipeline</h1>
+          <p className="text-text-muted text-sm mt-0.5">
+            {deals?.length ?? 0} deals · Total value: <span className="font-mono text-text-secondary">${totalValue.toLocaleString()}</span>
           </p>
         </div>
         <Link
           href="/deals/new"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          className="inline-flex items-center gap-2 bg-accent-primary hover:bg-opacity-90 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-smooth"
         >
           <Plus className="w-4 h-4" />
           New Deal
@@ -49,7 +49,7 @@ export default async function DealsPage() {
       </div>
 
       {error ? (
-        <div className="p-8 text-center text-red-600">Error loading deals: {error.message}</div>
+        <div className="p-8 text-center text-danger">Error loading deals: {error.message}</div>
       ) : (
         <div className="overflow-x-auto -mx-6 px-6">
           <div className="flex gap-4 min-w-max pb-4">
@@ -61,18 +61,18 @@ export default async function DealsPage() {
               return (
                 <div
                   key={stage}
-                  className={`w-72 flex-shrink-0 flex flex-col rounded-xl border-2 ${config.color} bg-slate-50`}
+                  className={`w-72 flex-shrink-0 flex flex-col rounded-xl border-2 ${config.color} bg-bg-secondary`}
                 >
                   {/* Column header */}
                   <div className={`px-4 py-3 rounded-t-xl ${config.headerColor}`}>
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-sm">{stage}</h3>
-                      <span className="text-xs font-bold bg-white bg-opacity-60 px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-bold bg-bg-secondary bg-opacity-60 px-2 py-0.5 rounded-full">
                         {stageDeals.length}
                       </span>
                     </div>
                     {stageValue > 0 && (
-                      <p className="text-xs mt-0.5 opacity-70">${stageValue.toLocaleString()}</p>
+                      <p className="text-xs mt-0.5 opacity-70 font-mono">${stageValue.toLocaleString()}</p>
                     )}
                   </div>
 
@@ -80,8 +80,8 @@ export default async function DealsPage() {
                   <div className="flex-1 p-3 space-y-3 min-h-[200px]">
                     {stageDeals.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-24 text-center">
-                        <Briefcase className="w-6 h-6 text-slate-300 mb-1" />
-                        <p className="text-xs text-slate-400">No deals</p>
+                        <Briefcase className="w-6 h-6 text-text-muted mb-1" />
+                        <p className="text-xs text-text-muted">No deals</p>
                       </div>
                     ) : (
                       stageDeals.map(deal => (
@@ -94,7 +94,7 @@ export default async function DealsPage() {
                   <div className="p-3 pt-0">
                     <Link
                       href={`/deals/new?stage=${encodeURIComponent(stage)}`}
-                      className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 hover:bg-white py-2 rounded-lg transition border border-dashed border-slate-300 hover:border-slate-400"
+                      className="w-full flex items-center justify-center gap-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-bg-tertiary py-2 rounded-lg transition-smooth border border-dashed border-border hover:border-accent-primary"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add deal
