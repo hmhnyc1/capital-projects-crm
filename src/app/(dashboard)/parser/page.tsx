@@ -245,7 +245,7 @@ export default function ParserPage() {
         {/* Header */}
         <div>
           <h1 className="text-4xl font-bold text-slate-900">Document Parser</h1>
-          <p className="text-slate-600 text-lg mt-2">Upload merchant application and bank statements. We'll extract everything automatically.</p>
+          <p className="text-slate-600 text-lg mt-2">Upload merchant application and bank statements. We&apos;ll extract everything automatically.</p>
         </div>
 
         {/* Progress Steps */}
@@ -320,7 +320,7 @@ export default function ParserPage() {
                 <div className="flex-shrink-0">
                   {f.parsing && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
                   {f.parsed && !f.error && <CheckCircle className="w-5 h-5 text-green-500" />}
-                  {f.error && <AlertCircle className="w-5 h-5 text-red-500" title={f.error} />}
+                  {f.error && <AlertCircle className="w-5 h-5 text-red-500" />}
                 </div>
                 <button
                   onClick={() => removeFile(f.id)}
