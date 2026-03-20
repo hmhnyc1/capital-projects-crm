@@ -5,33 +5,46 @@ import type { ParsedApplication } from '@/types'
 // Configure timeout for this API route (5 minutes for PDF analysis)
 export const maxDuration = 300
 
-const SYSTEM_PROMPT = `You are an expert MCA underwriter reviewing merchant loan applications.
-Extract all requested fields from the provided application PDF.
-Return ONLY valid JSON — no markdown, no explanation.
-Use null for any fields that cannot be determined from the document.`
+const SYSTEM_PROMPT = `You are an expert at extracting information from Merchant Cash Advance applications. Extract EVERY piece of information you can find in this document. Look through the entire document carefully including all pages, fine print, signature sections, and any handwritten notes.
 
-const USER_PROMPT = `Extract the following fields from this merchant application PDF and return as JSON:
+Return ONLY a valid JSON object. No explanation, no markdown, just the JSON.
+If a field is not found, return null, never guess.`
 
-{
-  "business_legal_name": "string or null - official legal business name",
-  "dba": "string or null - doing business as name if different",
-  "owner_name": "string or null",
-  "owner_dob": "YYYY-MM-DD or null",
-  "owner_ssn_last4": "last 4 digits only, no dashes, or null",
-  "business_address": "string or null - full address",
-  "business_phone": "string or null",
-  "business_email": "string or null",
-  "ein": "string or null - 9 digits with hyphen format",
-  "time_in_business_years": "number or null - years as decimal",
-  "stated_monthly_revenue": "number or null - average monthly revenue",
-  "bank_name": "string or null - primary operating bank",
-  "landlord_name": "string or null",
-  "monthly_rent": "number or null",
-  "use_of_funds": "string or null - stated purpose",
-  "co_owners": "array of {name: string, percentage: number} or null"
-}
+const USER_PROMPT = `Extract these fields from the merchant application - if a field is not found, return null, never guess:
+- business_legal_name: exact legal business name
+- dba: doing business as name if different
+- entity_type: LLC, Corporation, Sole Proprietor, Partnership
+- ein: employer identification number (XX-XXXXXXX format)
+- date_established: when business was founded
+- time_in_business: years and months in business as a decimal number like 2.5
+- business_address: full street address
+- business_city, business_state, business_zip
+- business_phone, business_fax
+- business_email, business_website
+- industry: type of business
+- monthly_revenue: stated gross monthly revenue as a number
+- monthly_rent: monthly rent or mortgage payment as a number
+- landlord_name: name of landlord or property owner
+- landlord_phone
+- use_of_funds: what the merchant wants the money for
+- owner_1_name: first and last name
+- owner_1_title: title or role
+- owner_1_dob: date of birth MM/DD/YYYY
+- owner_1_ssn: last 4 digits only formatted as XXXX
+- owner_1_address: home address
+- owner_1_ownership_pct: ownership percentage as integer
+- owner_1_email, owner_1_cell_phone, owner_1_home_phone
+- owner_2_name, owner_2_title, owner_2_dob, owner_2_ssn, owner_2_ownership_pct (if exists)
+- bank_name: name of the bank
+- bank_account_number: last 4 digits only
+- bank_routing_number
+- average_monthly_balance: stated average monthly balance
+- processor_name: credit card processor name
+- monthly_processing_volume: monthly card processing volume
+- existing_advances: any existing MCA or loan balances mentioned
+- signature_date: date the application was signed
 
-Return ONLY the JSON object. No markdown code blocks.`
+Return ONLY a valid JSON object with these exact field names. No explanation, no markdown, just the JSON.`
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,7 +94,7 @@ export async function POST(request: NextRequest) {
       console.log('[parse-application] Calling Anthropic API...')
       response = await client.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: [
           {
