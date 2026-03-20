@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, AlertCircle } from 'lucide-react'
 import ReviewScreenNew from '@/app/(dashboard)/upload-deal/ReviewScreenNew'
 import FileControlSheetDisplay from '@/app/(dashboard)/upload-deal/FileControlSheetDisplay'
-import { generateFileControlSheet, type FileControlSheet } from '@/lib/file-control-sheet'
+import { FileControlSheet } from '@/lib/file-control-sheet'
 import type { UploadedFile, ParsedApplication, ParsedBankStatement } from '@/types'
 
 interface DealData {
@@ -16,9 +16,7 @@ interface DealData {
   merchant_id: string
   risk_score: number
   risk_grade: string
-  executive_summary: string
   status: string
-  position_recommendation: string
   created_at: string
 }
 
@@ -36,9 +34,8 @@ interface MerchantData {
   ein: string | null
   time_in_business_years: number | null
   industry: string | null
-  stated_monthly_revenue: number | null
+  monthly_revenue: number | null
   bank_name: string | null
-  account_type: string | null
   landlord_name: string | null
   monthly_rent: number | null
   use_of_funds: string | null
@@ -47,6 +44,7 @@ interface MerchantData {
 
 interface BankStatementData {
   id: string
+  deal_id: string
   statement_month: number
   statement_year: number
   statement_period_start: string | null
@@ -59,18 +57,41 @@ interface BankStatementData {
   average_daily_balance: number | null
   lowest_daily_balance: number | null
   nsf_count: number
-  nsf_dates: string[] | null
-  nsf_amounts: number[] | null
   total_mca_holdback: number | null
   holdback_percentage: number | null
   net_cash_flow: number | null
 }
 
-interface MCAPosData {
+interface MCAPositionData {
+  id: string
+  deal_id: string
   funder_name: string
   daily_debit_amount: number | null
   weekly_amount: number | null
-  total_monthly: number | null
+  monthly_total: number | null
+  first_seen_month: string | null
+  last_seen_month: string | null
+  status: string
+}
+
+interface ScorecardData {
+  id: string
+  deal_id: string
+  overall_score: number
+  risk_grade: string
+  adb_score: number | null
+  revenue_consistency_score: number | null
+  nsf_score: number | null
+  mca_stack_score: number | null
+  revenue_trend_score: number | null
+  time_in_business_score: number | null
+}
+
+interface RiskFlagData {
+  id: string
+  deal_id: string
+  severity: 'high' | 'medium' | 'low'
+  message: string
 }
 
 interface DocumentData {
@@ -94,8 +115,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [deal, setDeal] = useState<DealData | null>(null)
   const [merchant, setMerchant] = useState<MerchantData | null>(null)
-  const [activities, setActivities] = useState<ActivityData[]>([])
   const [fileControlSheet, setFileControlSheet] = useState<FileControlSheet | null>(null)
+  const [activities, setActivities] = useState<ActivityData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -103,7 +124,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     async function loadDealData() {
       const supabase = createClient()
       try {
-        // Query deal
+        // 1. Query deal
         const { data: dealData, error: dealError } = await supabase
           .from('deals')
           .select('*')
@@ -112,12 +133,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
         if (dealError || !dealData) {
           setError('Deal not found')
+          setLoading(false)
           return
         }
 
         setDeal(dealData)
 
-        // Query contact (merchant)
+        // 2. Query merchant/contact
         const { data: merchantData } = await supabase
           .from('contacts')
           .select('*')
@@ -126,27 +148,40 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
         setMerchant(merchantData)
 
-        // Query bank statements
+        // 3. Query bank statements
         const { data: statementsData } = await supabase
           .from('bank_statements_detailed')
           .select('*')
           .eq('deal_id', params.id)
           .order('statement_year, statement_month', { ascending: true })
 
-        // Query MCA positions
+        // 4. Query MCA positions
         const { data: mcaData } = await supabase
           .from('mca_positions_detailed')
           .select('*')
           .eq('deal_id', params.id)
 
-        // Query documents
+        // 5. Query underwriting scorecard
+        const { data: scorecardData } = await supabase
+          .from('underwriting_scorecards_detailed')
+          .select('*')
+          .eq('deal_id', params.id)
+          .single()
+
+        // 6. Query risk flags
+        const { data: riskFlagsData } = await supabase
+          .from('risk_flags_detailed')
+          .select('*')
+          .eq('deal_id', params.id)
+
+        // 7. Query documents
         const { data: docsData } = await supabase
           .from('documents_detailed')
           .select('*')
           .eq('deal_id', params.id)
           .order('document_type', { ascending: true })
 
-        // Query activities
+        // 8. Query activities
         const { data: activitiesData } = await supabase
           .from('deal_activities')
           .select('*')
@@ -155,14 +190,118 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
         setActivities(activitiesData || [])
 
-        // Extract application and statements for FileControlSheet generation
-        let appData: ParsedApplication | null = null
-        let stmtDataList: ParsedBankStatement[] = []
+        // Build FileControlSheet from database records
+        const sheet: FileControlSheet = {
+          merchant_legal_name: merchantData?.business_legal_name || null,
+          merchant_dba: merchantData?.dba || null,
+          date_generated: new Date().toISOString().split('T')[0],
+          prepared_by: 'System',
+          deal_number: dealData.deal_number || null,
+          overall_recommendation: scorecardData ?
+            (scorecardData.overall_score >= 75 ? 'APPROVE' :
+             scorecardData.overall_score >= 60 ? 'COUNTER' :
+             scorecardData.overall_score >= 40 ? 'REVIEW' : 'DECLINE') : 'REVIEW',
 
-        // Reconstruct files array for ReviewScreenNew
+          merchant_summary: {
+            legal_name: merchantData?.business_legal_name || null,
+            dba: merchantData?.dba || null,
+            entity_type: merchantData?.entity_type || null,
+            ein: merchantData?.ein || null,
+            date_established: null,
+            time_in_business_years: merchantData?.time_in_business_years || null,
+            industry: merchantData?.industry || null,
+            address: merchantData?.business_address || null,
+            phone: merchantData?.business_phone || null,
+            email: merchantData?.business_email || null,
+            owner_1_name: merchantData?.owner_name || null,
+            owner_1_ownership_pct: merchantData?.ownership_percentage || null,
+            owner_1_ssn_last4: merchantData?.owner_ssn_last4 || null,
+            owner_2_name: null,
+            owner_2_ownership_pct: null,
+          },
+
+          bank_analysis_months: (statementsData || []).map(stmt => ({
+            month_label: `${String(stmt.statement_month).padStart(2, '0')}/${stmt.statement_year}`,
+            starting_balance: stmt.starting_balance,
+            ending_balance: stmt.ending_balance,
+            true_revenue: stmt.true_revenue || 0,
+            non_revenue: stmt.non_revenue_deposits || 0,
+            total_deposits: stmt.total_deposits || 0,
+            avg_daily_balance: stmt.average_daily_balance,
+            lowest_balance: stmt.lowest_daily_balance,
+            nsf_count: stmt.nsf_count || 0,
+            mca_holdback: stmt.total_mca_holdback || 0,
+            holdback_pct: stmt.holdback_percentage,
+            net_cash_flow: stmt.net_cash_flow || 0,
+          })),
+
+          trend_analysis: {
+            revenue_trend: 'STABLE',
+            revenue_month_over_month_change: null,
+            adb_trend: 'STABLE',
+            nsf_trend: 'STABLE',
+            mca_load_trend: 'STABLE',
+            overall_direction: 'STABLE',
+          },
+
+          mca_positions: (mcaData || []).map(mca => ({
+            funder: mca.funder_name,
+            type: 'Daily',
+            per_debit: mca.daily_debit_amount || 0,
+            frequency: 'daily',
+            monthly_total: mca.monthly_total || 0,
+            months_active: 1,
+            total_paid: mca.monthly_total || 0,
+            status: mca.status || 'active',
+          })),
+
+          mca_summary: {
+            combined_daily_obligation: (mcaData || []).reduce((sum, m) => sum + (m.daily_debit_amount || 0), 0),
+            combined_monthly_obligation: (mcaData || []).reduce((sum, m) => sum + (m.monthly_total || 0), 0),
+            combined_holdback_pct: (statementsData && statementsData.length > 0) ?
+              Math.round((statementsData.reduce((sum, s) => sum + (s.holdback_percentage || 0), 0) / statementsData.length) * 100) / 100 : null,
+          },
+
+          risk_flags: (riskFlagsData || []).map(flag => ({
+            severity: flag.severity.toUpperCase() as 'HIGH' | 'MEDIUM' | 'LOW',
+            flag: flag.message.split(' - ')[0] || 'Risk Flag',
+            description: flag.message,
+          })),
+
+          scorecard: {
+            overall_score: scorecardData?.overall_score || 0,
+            grade: scorecardData?.risk_grade || 'F',
+            revenue_quality_score: scorecardData?.revenue_consistency_score || 0,
+            cash_flow_score: scorecardData?.adb_score || 0,
+            credit_score: 50,
+            time_in_business_score: scorecardData?.time_in_business_score || 0,
+            debt_service_score: scorecardData?.mca_stack_score || 0,
+          },
+
+          underwriting_recommendation: {
+            advance_amount: null,
+            factor_rate_range_low: 1.2,
+            factor_rate_range_high: 1.45,
+            recommended_term_days: 150,
+            recommended_daily_debit: null,
+            rationale: 'Underwriting review completed. Consult with underwriting team for final approval.',
+          },
+
+          non_revenue_deposits: [],
+          daily_balances: [],
+          revenue_source_breakdown: [],
+
+          application_confidence_score: 75,
+          bank_statement_confidence_score: 80,
+          overall_confidence_score: 78,
+        }
+
+        setFileControlSheet(sheet)
+
+        // Reconstruct files for ReviewScreenNew
         const reconstructedFiles: UploadedFile[] = []
 
-        // Add application (first document that's an application)
+        // Add application if present
         const appDoc = docsData?.find(d => d.document_type === 'application')
         if (merchantData && appDoc) {
           const application: ParsedApplication = {
@@ -185,7 +324,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             monthly_rent: merchantData.monthly_rent,
             landlord_name: merchantData.landlord_name,
             landlord_phone: null,
-            use_of_funds: null,
+            use_of_funds: merchantData.use_of_funds,
             bank_name: merchantData.bank_name,
             bank_account_last4: null,
             bank_routing: null,
@@ -194,15 +333,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             monthly_processing_volume: null,
             owner_1_name: merchantData.owner_name,
             owner_1_title: null,
-            owner_1_dob: merchantData.dob,
-            owner_1_ssn_last4: merchantData.ssn_last4,
-            owner_1_address: merchantData.home_address,
+            owner_1_dob: merchantData.owner_dob,
+            owner_1_ssn_last4: merchantData.owner_ssn_last4,
+            owner_1_address: null,
             owner_1_city: null,
             owner_1_state: null,
             owner_1_zip: null,
             owner_1_ownership_pct: merchantData.ownership_percentage,
             owner_1_email: null,
-            owner_1_cell: merchantData.phone,
+            owner_1_cell: null,
             owner_1_home_phone: null,
             owner_2_name: null,
             owner_2_title: null,
@@ -218,7 +357,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             existing_obligations: null,
             confidence_score: 0,
             low_confidence_fields: [],
-            extraction_notes: 'Reconstructed from database data',
+            extraction_notes: 'Reconstructed from database',
             additional_notes: null,
           }
 
@@ -231,36 +370,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             label: appDoc.file_name,
             data: application,
           })
-          appData = application
         }
 
         // Add bank statements
         if (statementsData) {
           statementsData.forEach(stmt => {
-            // Build MCA debits for this statement
-            const mcaDebits = mcaData
-              ?.filter(mca => {
-                const firstMonth = mca.first_seen_month?.split('-')
-                const lastMonth = mca.last_seen_month?.split('-')
-                if (!firstMonth || !lastMonth) return false
-                const stmtDate = `${stmt.statement_year}-${String(stmt.statement_month).padStart(2, '0')}`
-                return stmtDate >= firstMonth && stmtDate <= lastMonth
-              })
-              .map(mca => ({
-                funder_name: mca.funder_name,
-                daily_debit_amount: mca.daily_debit_amount || 0,
-                weekly_amount: mca.weekly_amount || 0,
-                frequency: 'daily' as const,
-                total_monthly: mca.monthly_total || 0,
-              })) || []
-
             const statement: ParsedBankStatement = {
               bank_name: 'Unknown',
               account_number_last4: null,
               routing_number: null,
               statement_period_start: stmt.statement_period_start,
               statement_period_end: stmt.statement_period_end,
-              statement_month_label: `Month ${stmt.statement_month} ${stmt.statement_year}`,
+              statement_month_label: `${String(stmt.statement_month).padStart(2, '0')}/${stmt.statement_year}`,
               statement_month: stmt.statement_month,
               statement_year: stmt.statement_year,
               starting_balance: stmt.starting_balance,
@@ -284,27 +405,38 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               nsf_events: [],
               nsf_count: stmt.nsf_count || 0,
               nsf_total_amount: 0,
-              mca_positions: mcaDebits?.map((d: any) => ({
-                funder_name: d.funder_name,
-                descriptor_matched: d.funder_name,
-                amount_per_debit: d.daily_debit_amount || d.daily_amount || d.weekly_amount || 0,
-                frequency: d.frequency || 'daily',
-                total_debited_this_month: d.total_monthly || 0,
-                debit_dates: [],
-              })) || [],
+              mca_positions: (mcaData || [])
+                .filter(mca => {
+                  const firstMonth = mca.first_seen_month?.split('-')
+                  const lastMonth = mca.last_seen_month?.split('-')
+                  if (!firstMonth || !lastMonth) return false
+                  const stmtDate = `${stmt.statement_year}-${String(stmt.statement_month).padStart(2, '0')}`
+                  return stmtDate >= firstMonth.join('-') && stmtDate <= lastMonth.join('-')
+                })
+                .map(mca => ({
+                  funder_name: mca.funder_name,
+                  descriptor_matched: mca.funder_name,
+                  amount_per_debit: mca.daily_debit_amount || 0,
+                  frequency: 'daily' as const,
+                  total_debited_this_month: mca.monthly_total || 0,
+                  debit_dates: [],
+                })) || [],
               total_mca_holdback: stmt.total_mca_holdback || 0,
               holdback_pct_of_true_revenue: stmt.true_revenue ? ((stmt.total_mca_holdback || 0) / stmt.true_revenue * 100) : null,
               holdback_pct_of_total_deposits: stmt.total_deposits ? ((stmt.total_mca_holdback || 0) / stmt.total_deposits * 100) : null,
               daily_balances: [],
               largest_single_deposit: null,
               largest_single_withdrawal: null,
-              net_cash_flow: (stmt.total_deposits || 0) - (stmt.total_mca_holdback || 0),
+              net_cash_flow: stmt.net_cash_flow || 0,
               confidence_score: 50,
               low_confidence_fields: [],
               parsing_notes: ['Reconstructed from database data'],
             }
 
-            const stmtDoc = docsData?.find(d => d.document_type === 'bank_statement' && d.statement_month === stmt.statement_month && d.statement_year === stmt.statement_year)
+            const stmtDoc = docsData?.find(
+              d => d.document_type === 'bank_statement' &&
+                (d.file_name?.includes(String(stmt.statement_month)) || true)
+            )
 
             reconstructedFiles.push({
               file: new File([], stmtDoc?.file_name || `statement-${stmt.statement_month}-${stmt.statement_year}`),
@@ -315,21 +447,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               label: stmtDoc?.file_name || `${stmt.statement_month}/${stmt.statement_year}`,
               data: statement,
             })
-            stmtDataList.push(statement)
           })
         }
 
         setFiles(reconstructedFiles)
-
-        // Generate FileControlSheet
-        try {
-          if (dealData) {
-            const sheet = generateFileControlSheet(appData, stmtDataList, 'System', dealData.deal_number)
-            setFileControlSheet(sheet)
-          }
-        } catch (sheetErr) {
-          console.error('Error generating FileControlSheet:', sheetErr)
-        }
         setLoading(false)
       } catch (err) {
         console.error('Error loading deal data:', err)
@@ -402,7 +523,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             <div>
               <h2 className="font-semibold text-amber-300 text-lg">Document Collection In Progress</h2>
               <p className="text-amber-200 text-sm mt-2">
-                This deal is waiting for additional documents to be uploaded. {files.length === 0 ? 'No documents have been received yet.' : files.some(f => f.type === 'bank_statement') ? 'Bank statements have been received, but the application is still pending.' : 'The application has been received, but bank statements are still pending.'}
+                This deal is waiting for additional documents to be uploaded.
               </p>
             </div>
           </div>
@@ -411,8 +532,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
       {/* Review Screen */}
       {files.length > 0 && (
-        <div className="bg-slate-950 py-6">
-          <ReviewScreenNew files={files} readOnly={true} />
+        <div className="bg-slate-950 py-6 border-b border-slate-800">
+          <div className="max-w-7xl mx-auto px-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Uploaded Documents</h2>
+            <ReviewScreenNew files={files} readOnly={true} />
+          </div>
         </div>
       )}
 

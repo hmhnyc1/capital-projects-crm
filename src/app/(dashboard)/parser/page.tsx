@@ -1,358 +1,313 @@
 'use client'
 
 import { useState } from 'react'
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X, Download, Save, RotateCcw } from 'lucide-react'
+import { Upload, FileText, CheckCircle, AlertCircle, Loader, Minus } from 'lucide-react'
+import FileControlSheetDisplay from '@/app/(dashboard)/upload-deal/FileControlSheetDisplay'
+import { parseFile } from '@/app/(dashboard)/upload-deal/parse-file'
+import { generateFileControlSheet, type FileControlSheet } from '@/lib/file-control-sheet'
+import type { ParsedApplication, ParsedBankStatement } from '@/types'
 
 /**
  * PART 7: STANDALONE PARSER PAGE
  *
- * Independent parsing interface that works standalone or integrated with CRM.
- * Users can upload application + bank statements, see live parsing progress,
- * edit data as it comes in, view file control sheet, and save to CRM or export.
+ * Independent parsing interface for uploading and parsing documents.
+ * Users can upload merchant applications and/or bank statements,
+ * get automatic parsing with confidence scores, and view comprehensive
+ * file control sheets for underwriting.
  */
 
-interface UploadedFile {
-  id: string
-  file: File
-  type: 'application' | 'bank_statement' | 'unknown'
-  parsing: boolean
-  parsed: boolean
+interface ParseResult {
+  fileName: string
+  fileType: 'application' | 'bank_statement' | 'unknown'
+  data: ParsedApplication | ParsedBankStatement | null
+  confidence: number
   error: string | null
-  label: string
-  data: any
 }
 
 export default function ParserPage() {
-  const [files, setFiles] = useState<UploadedFile[]>([])
-  const [dragActive, setDragActive] = useState(false)
-  const [allParsed, setAllParsed] = useState(false)
-  const [showResults, setShowResults] = useState(false)
-  const [results, setResults] = useState<any>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const [parsing, setParsing] = useState(false)
+  const [parseResults, setParseResults] = useState<ParseResult[]>([])
+  const [fileControlSheet, setFileControlSheet] = useState<FileControlSheet | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleDrag(e: React.DragEvent) {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf')
+    if (droppedFiles.length > 0) {
+      setFiles(prev => [...prev, ...droppedFiles])
     }
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || [])
+    setFiles(prev => [...prev, ...selectedFiles])
+  }
 
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(
-      f => f.type === 'application/pdf'
-    )
+  const handleRemoveFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
 
-    const newFiles: UploadedFile[] = droppedFiles.map((file, idx) => {
-      const hasMonthName = /january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec/i.test(file.name)
-      const hasAppKeyword = /app|application|form|merchant|underwriting/i.test(file.name)
+  const handleParse = async () => {
+    if (files.length === 0) {
+      setError('Please select files to parse')
+      return
+    }
 
-      return {
-        id: `${Date.now()}-${idx}`,
-        file,
-        type: hasAppKeyword ? 'application' : hasMonthName ? 'bank_statement' : 'unknown',
-        parsing: true,
-        parsed: false,
-        error: null,
-        label: file.name,
-        data: null,
-      }
-    })
+    setParsing(true)
+    setError(null)
+    setParseResults([])
+    setFileControlSheet(null)
 
-    setFiles(prev => [...prev, ...newFiles])
+    const results: ParseResult[] = []
+    let appData: ParsedApplication | null = null
+    let stmtDataList: ParsedBankStatement[] = []
 
-    // Simulate parsing (in real implementation, this calls API)
-    newFiles.forEach((f, idx) => {
-      setTimeout(() => {
-        setFiles(prev => {
-          const updated = [...prev]
-          const fileIdx = updated.findIndex(uf => uf.id === f.id)
-          if (fileIdx >= 0) {
-            updated[fileIdx] = {
-              ...updated[fileIdx],
-              parsing: false,
-              parsed: true,
-              label: `${f.type === 'application' ? '📄 Application' : '🏦 Bank Statement'} - ${f.file.name}`,
-            }
+    try {
+      for (const file of files) {
+        try {
+          const result = await parseFile(file, file.name)
+          results.push({
+            fileName: file.name,
+            fileType: result.type as 'application' | 'bank_statement' | 'unknown',
+            data: result.data,
+            confidence: result.data && 'confidence_score' in result.data ? result.data.confidence_score : 0,
+            error: result.error,
+          })
+
+          if (result.type === 'application' && result.data) {
+            appData = result.data as ParsedApplication
+          } else if (result.type === 'bank_statement' && result.data) {
+            stmtDataList.push(result.data as ParsedBankStatement)
           }
-          return updated
-        })
+        } catch (err) {
+          results.push({
+            fileName: file.name,
+            fileType: 'unknown',
+            data: null,
+            confidence: 0,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          })
+        }
+      }
 
-        setAllParsed(
-          files.length > 0 &&
-          files.every(
-            file => !file.parsing && (file.parsed || file.error)
-          )
-        )
-      }, 1500 + Math.random() * 500)
-    })
+      setParseResults(results)
+
+      // Generate FileControlSheet if we have data
+      if (appData || stmtDataList.length > 0) {
+        const sheet = generateFileControlSheet(appData, stmtDataList, 'Manual Parser', null)
+        setFileControlSheet(sheet)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to parse files')
+    } finally {
+      setParsing(false)
+    }
   }
 
-  function removeFile(id: string) {
-    setFiles(prev => prev.filter(f => f.id !== id))
-    setAllParsed(false)
-  }
-
-  function handleStartOver() {
+  const handleClear = () => {
     setFiles([])
-    setAllParsed(false)
-    setShowResults(false)
-    setResults(null)
-  }
-
-  async function handleExportPDF() {
-    // In real implementation, generate PDF from results
-    alert('PDF export functionality would be implemented here')
-  }
-
-  async function handleSaveToCRM() {
-    // In real implementation, save to CRM database
-    alert('Save to CRM functionality would be implemented here')
-  }
-
-  if (showResults && results) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">File Control Sheet</h1>
-            <p className="text-slate-600">{results.merchant_legal_name || 'Unknown Merchant'}</p>
-          </div>
-
-          {/* Results Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-              <p className="text-sm text-slate-600 mb-1">Recommendation</p>
-              <p className="text-2xl font-bold text-blue-600">{results.overall_recommendation}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-              <p className="text-sm text-slate-600 mb-1">Underwriting Score</p>
-              <p className="text-2xl font-bold text-green-600">{results.scorecard?.overall_score || 'N/A'}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-              <p className="text-sm text-slate-600 mb-1">Revenue (Monthly)</p>
-              <p className="text-2xl font-bold text-purple-600">
-                ${(results.merchant_summary?.monthly_revenue || 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
-              <p className="text-sm text-slate-600 mb-1">Confidence</p>
-              <p className="text-2xl font-bold text-orange-600">{results.overall_confidence_score}%</p>
-            </div>
-          </div>
-
-          {/* Bank Analysis Table */}
-          {results.bank_analysis_months && results.bank_analysis_months.length > 0 && (
-            <div className="bg-white rounded-lg shadow mb-8 overflow-hidden">
-              <div className="p-6 border-b border-slate-200">
-                <h2 className="text-xl font-semibold text-slate-900">Monthly Bank Analysis</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-600">Month</th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-600">Revenue</th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-600">ADB</th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-600">NSFs</th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-600">MCA Holdback</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {results.bank_analysis_months.map((month: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-900">{month.month_label}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600 text-right">
-                          ${month.true_revenue.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600 text-right">
-                          ${(month.avg_daily_balance || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600 text-right">{month.nsf_count}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600 text-right">
-                          ${month.mca_holdback.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Risk Flags */}
-          {results.risk_flags && results.risk_flags.length > 0 && (
-            <div className="bg-white rounded-lg shadow mb-8 overflow-hidden">
-              <div className="p-6 border-b border-slate-200">
-                <h2 className="text-xl font-semibold text-slate-900">Risk Flags</h2>
-              </div>
-              <div className="divide-y divide-slate-200">
-                {results.risk_flags.map((flag: any, idx: number) => (
-                  <div key={idx} className="p-6 flex gap-4">
-                    <div className="flex-shrink-0">
-                      {flag.severity === 'HIGH' && <div className="w-4 h-4 rounded-full bg-red-500 mt-1" />}
-                      {flag.severity === 'MEDIUM' && <div className="w-4 h-4 rounded-full bg-yellow-500 mt-1" />}
-                      {flag.severity === 'LOW' && <div className="w-4 h-4 rounded-full bg-blue-500 mt-1" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-900">{flag.flag}</p>
-                      <p className="text-sm text-slate-600 mt-1">{flag.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex gap-4 mb-8">
-            <button
-              onClick={handleExportPDF}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
-            >
-              <Download className="w-5 h-5" />
-              Export PDF
-            </button>
-            <button
-              onClick={handleSaveToCRM}
-              className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition"
-            >
-              <Save className="w-5 h-5" />
-              Save to CRM
-            </button>
-            <button
-              onClick={handleStartOver}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg transition"
-            >
-              <RotateCcw className="w-5 h-5" />
-              Start Over
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+    setParseResults([])
+    setFileControlSheet(null)
+    setError(null)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-4xl font-bold text-slate-900">Document Parser</h1>
-          <p className="text-slate-600 text-lg mt-2">Upload merchant application and bank statements. We&apos;ll extract everything automatically.</p>
+    <div className="min-h-screen bg-slate-950">
+      {/* Header */}
+      <div className="border-b border-slate-800 bg-slate-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold text-white mb-2">Document Parser</h1>
+          <p className="text-slate-400">Upload and parse merchant applications and bank statements independently</p>
         </div>
+      </div>
 
-        {/* Progress Steps */}
-        <div className="flex gap-8 justify-center">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold mb-2">1</div>
-            <span className="text-sm font-medium text-slate-700">Upload</span>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Upload Section */}
+        <div className="mb-8">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${isDragging
+              ? 'border-blue-500 bg-blue-500/10'
+              : 'border-slate-700 bg-slate-900/50 hover:border-slate-600'
+              }`}
+          >
+            <div className="flex justify-center mb-4">
+              <Upload className="w-12 h-12 text-slate-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Drop PDF files here</h2>
+            <p className="text-slate-400 mb-6">or</p>
+            <label className="inline-block">
+              <input
+                type="file"
+                multiple
+                accept=".pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <span className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer font-medium transition">
+                Select Files
+              </span>
+            </label>
+            <p className="text-xs text-slate-500 mt-4">PDF files only</p>
           </div>
-          <div className="flex flex-col items-center opacity-50">
-            <div className="w-12 h-12 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold mb-2">2</div>
-            <span className="text-sm font-medium text-slate-700">Parse</span>
-          </div>
-          <div className="flex flex-col items-center opacity-50">
-            <div className="w-12 h-12 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold mb-2">3</div>
-            <span className="text-sm font-medium text-slate-700">Review</span>
-          </div>
-        </div>
 
-        {/* Upload Zone */}
-        <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
-            dragActive
-              ? 'border-blue-400 bg-blue-50'
-              : 'border-slate-300 hover:border-blue-400 bg-white'
-          }`}
-        >
-          <Upload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-          <p className="text-xl font-semibold text-slate-900 mb-2">Drag PDFs here</p>
-          <p className="text-slate-600 mb-4">Upload application, bank statements, or both</p>
-          <label className="inline-block">
-            <input
-              type="file"
-              multiple
-              accept=".pdf"
-              onChange={e => {
-                if (e.target.files) {
-                  const newFiles = Array.from(e.target.files).map((file, idx) => ({
-                    id: `${Date.now()}-${idx}`,
-                    file: file as File,
-                    type: 'unknown' as const,
-                    parsing: false,
-                    parsed: false,
-                    error: null,
-                    label: file.name,
-                    data: null,
-                  }))
-                  setFiles(prev => [...prev, ...newFiles])
-                }
-              }}
-              className="hidden"
-            />
-            <span className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg inline-block transition">
-              Or click to select
-            </span>
-          </label>
-        </div>
+          {/* File List */}
+          {files.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-white mb-3">Selected Files ({files.length})</h3>
+              <div className="space-y-2">
+                {files.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded p-3">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-100">{file.name}</p>
+                        <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFile(idx)}
+                      className="text-slate-400 hover:text-red-400 transition"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
 
-        {/* File List */}
-        {files.length > 0 && (
-          <div className="space-y-3">
-            {files.map(f => (
-              <div key={f.id} className="flex items-center gap-4 p-4 bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition">
-                <FileText className="w-6 h-6 text-slate-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-900 truncate">{f.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{f.file.size.toLocaleString()} bytes</p>
-                </div>
-                <div className="flex-shrink-0">
-                  {f.parsing && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
-                  {f.parsed && !f.error && <CheckCircle className="w-5 h-5 text-green-500" />}
-                  {f.error && <AlertCircle className="w-5 h-5 text-red-500" />}
-                </div>
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
                 <button
-                  onClick={() => removeFile(f.id)}
-                  className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                  onClick={handleParse}
+                  disabled={parsing || files.length === 0}
+                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
                 >
-                  <X className="w-5 h-5" />
+                  {parsing ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Parsing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Parse Documents
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleClear}
+                  className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition"
+                >
+                  Clear
                 </button>
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-6 p-4 bg-red-900/30 border border-red-700 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-300">Error</p>
+                <p className="text-sm text-red-200 mt-1">{error}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Parse Results */}
+        {parseResults.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">Parse Results</h2>
+            <div className="space-y-3">
+              {parseResults.map((result, idx) => (
+                <div key={idx} className={`p-4 rounded-lg border ${
+                  result.error
+                    ? 'bg-red-900/20 border-red-700'
+                    : 'bg-green-900/20 border-green-700'
+                }`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {result.error ? (
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        )}
+                        <p className="font-medium text-white">{result.fileName}</p>
+                      </div>
+                      {!result.error && (
+                        <>
+                          <p className={`text-sm mt-2 ${
+                            result.fileType === 'application' ? 'text-blue-300' :
+                            result.fileType === 'bank_statement' ? 'text-green-300' :
+                            'text-yellow-300'
+                          }`}>
+                            Type: <span className="font-medium">{result.fileType}</span>
+                          </p>
+                          {result.confidence > 0 && (
+                            <p className="text-sm text-slate-300 mt-1">
+                              Confidence: <span className="font-medium">{result.confidence}%</span>
+                            </p>
+                          )}
+                          {result.data && 'low_confidence_fields' in result.data && result.data.low_confidence_fields?.length > 0 && (
+                            <p className="text-xs text-yellow-300 mt-2">
+                              ⚠️ Low confidence on: {result.data.low_confidence_fields.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {result.error && (
+                        <p className="text-sm text-red-300 mt-2">{result.error}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      {!result.error && result.data && (
+                        <div className="text-xs text-slate-400">
+                          ✓ Parsed
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Action Buttons */}
-        {files.length > 0 && (
-          <div className="flex gap-4">
-            <button
-              onClick={() => setShowResults(true)}
-              disabled={!allParsed}
-              className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                allParsed
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-slate-200 text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              {allParsed ? 'View Results' : 'Parsing...'}
-            </button>
-            <button
-              onClick={() => setFiles([])}
-              className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold rounded-lg transition"
-            >
-              Clear
-            </button>
+        {/* File Control Sheet */}
+        {fileControlSheet && (
+          <>
+            <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
+              <h2 className="text-lg font-semibold text-white">Underwriting Report Generated</h2>
+              <p className="text-sm text-blue-300 mt-1">
+                File control sheet has been generated from the parsed documents below.
+              </p>
+            </div>
+            <FileControlSheetDisplay sheet={fileControlSheet} />
+          </>
+        )}
+
+        {/* Empty State */}
+        {parseResults.length === 0 && !fileControlSheet && files.length === 0 && (
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+            <p className="text-slate-400">Upload PDF documents to get started</p>
           </div>
         )}
       </div>

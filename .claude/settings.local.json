@@ -10,7 +10,10 @@
       "Bash(node -c /c/Users/hmhny/my-crm/src/app/actions/create-deal-comprehensive.ts)",
       "Bash(git checkout:*)",
       "Bash(node:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(/tmp/qa_checklist.md:*)",
+      "Read(//tmp/**)",
+      "Bash(wc:*)"
     ]
   }
 }
